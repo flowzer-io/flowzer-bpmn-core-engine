@@ -144,10 +144,15 @@ def auth_attempt_result(value,expected):
     keys={'total','passed','failed','skipped','interrupted','errors','success'}
     counts=keys-{'success','errors'}
     require(type(expected) is int and 1<=expected<=10000
-        and type(value) is dict and set(value)==keys and value['success'] is False
+        and type(value) is dict and set(value) in (keys,keys|{'failed_test_indexes'}) and value['success'] is False
         and all(type(value[key]) is int and 0<=value[key]<=expected for key in counts)
         and type(value['errors']) is int and 0<=value['errors']<=10000
         and sum(value[key] for key in counts-{'total'})<=value['total'])
+    if 'failed_test_indexes' in value:
+        indexes=value['failed_test_indexes']
+        require(type(indexes) is list and 1<=len(indexes)<=value['failed']
+            and all(type(index) is int and 1<=index<=value['total'] for index in indexes)
+            and indexes==sorted(set(indexes)))
     return value
 
 

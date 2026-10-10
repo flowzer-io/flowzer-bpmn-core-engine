@@ -100,3 +100,46 @@ test('Auch der Browserprozess ist vor Contextstart an den lokalen Proxy gebunden
   assert.ok(options.args.includes('--disable-quic'));
   assert.ok(options.args.includes('--force-webrtc-ip-handling-policy=disable_non_proxied_udp'));
 });
+
+test('Reporter bindet Fehltests nur an numerische Suiteordinale, niemals Roh-IDs oder Fehler', () => {
+  // Testzweck: Stabile TestCase.id bleibt nur RAM-Zuordnung; failed/timedOut exportieren
+  // ihre bekannte 1-basierte Position, während Titel, Authfehler und Anhänge ungelesen bleiben.
+  const folder=fs.mkdtempSync(path.join(os.tmpdir(),'flowzer-ordinal-unit-'));
+  const previous=process.env.FLOWZER_RUNTIME_REPORT;
+  try {
+    process.env.FLOWZER_RUNTIME_REPORT=path.join(folder,'auth-result.json');
+    const tests=[{id:'synthetic-session-id-1'},{id:'synthetic-session-id-2'},{id:'synthetic-session-id-3'}];
+    Object.defineProperty(tests[1],'title',{get(){throw new Error('Titel darf nicht gelesen werden');}});
+    const reporter=new SafeReporter();reporter.onBegin({}, {allTests:()=>tests});
+    reporter.onTestEnd(tests[0],{status:'passed'});
+    const failure={status:'failed'};
+    Object.defineProperty(failure,'error',{get(){throw new Error('Rohfehler darf nicht gelesen werden');}});
+    reporter.onTestEnd({id:tests[1].id},failure);reporter.onTestEnd(tests[2],{status:'timedOut'});
+    reporter.onEnd({status:'failed'});
+    const raw=fs.readFileSync(process.env.FLOWZER_RUNTIME_REPORT,'utf8');
+    assert.deepEqual(JSON.parse(raw),{total:3,passed:1,failed:2,skipped:0,interrupted:0,errors:0,
+      success:false,failed_test_indexes:[2,3]});
+    assert.ok(!raw.includes('synthetic-session-id'));assert.ok(!raw.includes('Titel'));
+  } finally {
+    if(previous===undefined)delete process.env.FLOWZER_RUNTIME_REPORT;else process.env.FLOWZER_RUNTIME_REPORT=previous;
+    fs.rmSync(folder,{recursive:true});
+  }
+});
+
+test('Unbekannte oder mehrdeutige Test-ID erhält keine erfundene Ordinalnull', () => {
+  // Testzweck: Fehlende/duplizierte Sitzungsidentität bleibt ohne Kennung; bestehende
+  // sieben Zählerfelder und wx-Bindung bleiben unverändert, kein Erfolg wird erfunden.
+  const folder=fs.mkdtempSync(path.join(os.tmpdir(),'flowzer-ordinal-unknown-'));
+  const previous=process.env.FLOWZER_RUNTIME_REPORT;
+  try {
+    process.env.FLOWZER_RUNTIME_REPORT=path.join(folder,'auth-result.json');
+    const reporter=new SafeReporter();reporter.onBegin({}, {allTests:()=>[{id:'same'},{id:'same'}]});
+    reporter.onTestEnd({id:'same'},{status:'failed'});reporter.onTestEnd({id:'unknown'},{status:'failed'});
+    reporter.onEnd({status:'failed'});
+    assert.deepEqual(JSON.parse(fs.readFileSync(process.env.FLOWZER_RUNTIME_REPORT,'utf8')),
+      {total:2,passed:0,failed:2,skipped:0,interrupted:0,errors:0,success:false});
+  } finally {
+    if(previous===undefined)delete process.env.FLOWZER_RUNTIME_REPORT;else process.env.FLOWZER_RUNTIME_REPORT=previous;
+    fs.rmSync(folder,{recursive:true});
+  }
+});

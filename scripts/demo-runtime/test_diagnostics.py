@@ -18,6 +18,20 @@ MARKER = 'synthetic-private-error-must-not-escape'
 
 
 class DiagnosticsTests(unittest.TestCase):
+    def test_failed_auth_optional_ordinals_are_closed_unique_and_not_success(self):
+        # Testzweck: Nur bekannte positive Suiteordinale eines echten Fehlversuchs,
+        # niemals Titel/IDs, erfundene Null, Duplikate oder mehr Kennungen als Fehltests.
+        value=dict(total=16,passed=1,failed=1,skipped=0,interrupted=0,errors=0,
+            success=False,failed_test_indexes=[2])
+        try:actual=runner.auth_attempt_result(value,16)
+        except ValueError:actual=None
+        self.assertEqual(value,actual,'Optionale geschlossene Fehltestordinale fehlen')
+        for indexes in [[],[0],[17],[True],['2'],[2.0],[1,1],[2,1]]:
+            with self.subTest(indexes=indexes),self.assertRaises(ValueError):
+                runner.auth_attempt_result(value|{'failed_test_indexes':indexes},16)
+        with self.assertRaises(ValueError):runner.auth_result(value|{'success':True},16)
+        with self.assertRaises(ValueError):runner.auth_attempt_result(value|{'raw':MARKER},16)
+
     def test_actual_measured_auth_child_exit_has_distinct_provenance(self):
         # Testzweck: Nur der wirklich gelesene returncode des eigenen gemessenen
         # Auth-Kindprozesses aktiviert die Fehlversuchsprojektion, kein Sampling-Exit.

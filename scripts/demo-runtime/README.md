@@ -1,5 +1,34 @@
 # Temporärer Ressourcenpilot — isolierter Abnahmevorschlag
 
+## Numerische Fehltestposition – Diagnose nach Run 38063115353
+
+Der neue reale Erstlauf `38063115353/a1` auf
+`7b7ae4e7d3845b2fe09f4137e5cadec1b0e07d80` bleibt **FAILURE** mit dem tatsächlichen
+Auth-Exit1. Acht Samples und eigenes bestätigtes Cleanup sind Fortschritt, keine
+vollständige Auth-/Ressourcenabnahme. Der herkunftsgebundene Fehlversuchsbericht
+belegt `total=16`, `passed=1`, `failed=1`, `skipped=0`, `interrupted=0`, `errors=0`.
+Die übrigen 14 Tests haben keine Endzähler; ihr Ergebnis bleibt unbekannt.
+Eine Eingrenzung auf das erste Check-config-Projekt ist aus der festen Projekt-
+und Abhängigkeitsreihenfolge abgeleitet, noch kein beobachteter Einzeltestbeleg.
+
+Der eigene sichere Reporter ordnet nun die von Playwright dokumentierte
+[sitzungseindeutige TestCase.id](https://playwright.dev/docs/api/class-testcase#test-case-id)
+nur im RAM ihrer positiven 1-basierten Position in der tatsächlichen Suite zu.
+Nur tatsächliche bekannte Fehltests ergänzen `failed_test_indexes`; maximal 16
+sortierte eindeutige Integer und nie mehr als die tatsächliche Fehltestanzahl.
+Titel, IDs, Pfade, Fehlermeldungen, Anhänge und Authmaterial werden nicht exportiert.
+Unbekannte oder doppelte Identitäten bleiben ohne Kennung, niemals Index 0.
+Erfolgreiche Berichte behalten exakt den bisherigen Sieben-Felder-Vertrag.
+
+Ein echtes Python- und ein echtes Mock-Node-Assertion-RED belegten den fehlenden
+optional geschlossenen Vertrag. Danach bestehen **69 Python- und 16 Mock-Node-Tests
+ohne Skips**; alle bisherigen 68 Pythonmethoden und 14 Nodefälle bleiben erhalten.
+Die Nodeprobe greift absichtlich geschützte Titel-/Rohfehlergetter nicht an.
+Originalspecs und alle Auth-/Prozess-/Ressourcen-/Cleanup-/Netzgates bleiben gleich.
+Diese Änderung ist zunächst nur eine weitere genaue Diagnose, keine Behebung
+des unbekannten fachlichen Authfehlers. Vor neuer Publikation und genau einem
+seriellen Hosted-Erstlauf sind Whole-Freeze, unabhängiger Review und aktuelle Proofs Pflicht.
+
 ## Fehlgeschlagene Auth-Zähler erhalten – Diagnose nach Run 38061614856
 
 Der reale Erstlauf `38061614856/a1` auf
