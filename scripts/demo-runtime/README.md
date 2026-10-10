@@ -623,3 +623,88 @@ gelieferten weiteren Keys dieses Paares verarbeiten. Drop ist idempotent, alle
 eigenen Socket-Closes werden auch bei erster Ausnahme versucht und andere Paare
 werden weiter bedient. Fehlerklassen, feste Ziele, Ressourcen-/Zeit-/TLS-/Auth-/
 Netz-/Cleanupgrenzen und Originalassertions bleiben unverändert.
+
+### Tatsächlicher Relay-Erstlauf und rein numerische Fehlerdiagnose
+
+Der neue isolierte Erstlauf `38094545953/a1` auf
+`ef871f5f71c6f91cfa186d29200d70c5a1b0b360` bleibt **FAILURE**. Die originale
+vorhandene Discovery-Anfrage beobachtete nun HTTP 200, passenden Issuer und
+PKCE S256; der vorherige Loopback-/TLS-/Discoveryblocker ist tatsächlich überwunden.
+Neun diskrete Samples, Containerpeak 940638208 Bytes, kein beobachtetes OOM und
+eigenes bestätigtes Docker-Cleanup sind belegt. Auth und Relay-Close endeten jedoch
+jeweils mit Exit 1. Relay-RSS/CPU/Close-Read-back sowie vollständige Abnahme fehlen
+weiterhin, bleiben **unbekannt**, nicht null Bytes oder akzeptiert.
+
+Der Authbericht enthält 16 geplante, 2 bestandene, 3 fehlgeschlagene und 10
+übersprungene Tests. Ein Endresultat fehlt. Die feste unveränderte CF-Testreihenfolge
+ordnet Fehlindizes 3/7/12 dem nur lesenden Abgleich-Servicekonto, gesunder Readiness
+mit aktuellem Migrationsstand und Ablehnung fremder Bearer-Audience zu. Jeder dieser
+Flows hat außerdem gemeinsame `beforeAll`-Voraussetzungen. Diese Sourcezuordnung
+beweist weder eine bestimmte fehlgeschlagene Assertion noch eine fachliche
+Rollenfehlkonfiguration: Ein gemeinsamer Transport-/Setupfehler bleibt möglich.
+Der fehlende Einzelindex ist aus bloßen Zählern/Fehlindizes nicht rückwirkend belegbar.
+Insbesondere ist die statisch abhängige Restartposition 16 **kein** beobachtetes
+fehlendes Ergebnis. Kein Titel, Test-ID, Hook-/Fehlerrohtext oder Token wird exportiert.
+
+Eine weitere ausschließlich diagnostische Sourcekorrektur merkt vor bestehenden
+Relay-Operationen deren feste Stage im einen RAM-Thread. Es gibt keine zusätzliche
+Verbindung/Probe und keine neue Fehlertoleranz: auch beispielsweise `ENOTCONN`
+bleibt unverändert fatal. Nach den bisherigen eigenen Closeversuchen wird ausschließlich
+`relay_failure` mit numeric/bool/null übernommen, nur nach tatsächlich beobachtetem
+gültigem eigenem Child-Exitstatus ungleich 0. Eine vor Readiness
+verbrauchte eigene Fehlerzeile bleibt bis dahin nur im RAM. Unbekannter Exit besitzt
+keinen Fehlerberichtnachweis. Fehlender Bericht bleibt unbekannt; manipulierter Bericht
+bekommt nur eine optionale `relay_report`-Diagnose **nach** dem wirklichen Exit.
+Max3 schützt weiterhin Index0 und echte Stop-/Cleanup-/Relay-Closeursachen.
+
+Stages: 1 Input, 2 Limits, 3 Listener, 4 Selector, 5 Engine, 6 Ready, 7 Deadline,
+8 Select, 9 Accept, 10 Connect, 11 Registration, 12 Read, 13 Write, 14 Half-close,
+15 Drop, 16 Close, 17 Usage, 18 Report. Error-Kategorien: 1 Validierung, 2 Timeout,
+3 Unterbrechung, 4 I/O, 5 Memory, 6 unbekannt. Die feste POSIX-Errno-Liste wird
+plattformunabhängig als Kategorie projiziert: 1 EADDRINUSE, 2 ECONNREFUSED,
+3 ECONNRESET, 4 EPIPE, 5 ENOTCONN, 6 EBADF, 7 ETIMEDOUT, 8 EMFILE, 9 ENOMEM,
+10 ENOBUFS, 11 EACCES, 12 EPERM, 13 EINVAL, 14 EHOSTUNREACH, 15 ENETUNREACH,
+16 EIO, 17 EINTR. Unbekannte/fehlende Werte sind null, niemals Erfolgs-/Nullcode.
+Namen stehen nur in Source/Doku; im Runtimebericht ausschließlich feste Nummern.
+
+Die erste reale Fehler-Stage/Error/Errno bleibt vor späteren Closeversuchen gebunden.
+Tatsächliche zusätzliche Closefehler werden separat mit denselben Kategorien und
+`closed=false` aufgeführt. Ohne eigenen Handle-/Closebeleg ist `closed=null`.
+Tatsächliches eigenes Linux-rusage liefert Peak-RSS/CPU-Millis oder null, auch im
+Fehlerpfad. Diese Beobachtung besitzt bewusst keinen erfolgreichen Budget-/Limits-
+oder Gesamtressourcenvertrag, selbst wenn alle eigenen Closeversuche erfolgreich
+waren. `relay`-Erfolg und die erfolgreiche Gesamtpeak-Obergrenze bleiben unverändert.
+Keine Ausnahme-Rohtexte, Payloads, IPs, URLs, Header, Zertifikate oder Tokens werden gelesen
+oder ausgegeben. Aus einem eigenen Pipefehler entsteht keine Rawlog-Ausweichroute.
+
+Acht echte eindeutige Assertion-REDs in acht additiven Methoden wurden von
+**106 Python / 21 Mock-Node ohne Skips** abgelöst. Ein früher Clock-/Cleanupmocklauf
+wurde separat ausgeschlossen und nicht als RED/Grün gezählt. Alle 98 vorherigen
+Pythonmethoden und alle JS-/21 Nodefälle bleiben bytegleich, Leser-Allowlist weiterhin
+173 Git / 4 Ruby-YAML / 1 Node-VM. Alles lokal nur hermetische Mocks, keine echte
+Runtime. Whole-Freeze, separater unabhängiger Gesamtreview und frische exakte
+Commit-/Tree-/Parent-/GitHub-Ref-/Source-CI-/7-Receipt-/Registrygates bleiben vor
+genau einem neuen seriellen Hosted-Erstlauf Pflicht. Historische Fehlläufe bleiben rot.
+
+### Reviewnacharbeit der numerischen Relaydiagnose
+
+Der erste rein diagnostische Whole-Stand bleibt physisch archiviert (24 Quellen,
+13 Belege und Freeze/Review/Übergabe) und wurde weder gepusht noch ausgeführt.
+Ein unabhängig bestätigter P2 betraf die Provenienzreihenfolge: Mehr als 1024
+eigene Pipebytes konnten vor der Statusprojektion einen tatsächlich bekannten
+Relayexit durch `validation/null` ersetzen. Jetzt steht ausschließlich ein
+wirklich bekannter Fehlstatus zuerst; dieselbe 1024-Byte-Grenze sowie Decode/
+Schema sind im anschließenden optionalen `relay_report`-Pfad unverändert streng.
+Exit 0 und unbekannte Childstatus behalten exakt ihre bisherigen Größen-/
+Erfolgsentscheidungen. Kein Bericht mit Unknownstatus wird als `relay_failure`
+exportiert. Gültige tatsächlich beobachtete eigene Ressourcen-/Closezahlen
+bleiben wie bisher erhalten; überlange/manipulierte Bytes sind kein solcher Beleg.
+
+Drei echte neue Assertion-RED-Beobachtungen (Session Exit1 und Signalexit sowie
+voller Run/Auth/Cleanup) in zwei additiven Methoden wurden von **109 Python / 21
+Mock-Node ohne Skips** abgelöst. Ein dritter neuer Guardtest belegt unverändertes
+Exit0-/Unknown-Verhalten. Alle 106 vorherigen Methoden, sämtliche JS und alle
+historischen Source-/Proof-/Snapshotbindungen bleiben erhalten. Keine Runtime,
+zusätzliche Probe, geänderte Fehlerakzeptanz oder Lockerung von Ressourcen,
+Auth/TLS/Netz/Timeout/Max3/Ownership/Cleanup. Neue Whole-Freeze und eigener
+unabhängiger Gesamtreview bleiben vor Publikation/einem neuen Erstlauf Pflicht.

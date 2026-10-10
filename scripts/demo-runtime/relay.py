@@ -28,6 +28,47 @@ IDLE_SECONDS=30
 PRIVATE_NETWORKS=tuple(ipaddress.ip_network(value) for value in
     ('10.0.0.0/8','172.16.0.0/12','192.168.0.0/16'))
 
+# Ein einziger Thread: unmittelbar VOR vorhandener Operation deren feste Nummer
+# merken. Keine zusätzlichen Verbindungen, kein Exception-/Adress-/Byteexport.
+# 1 Input, 2 Limits, 3 Listener, 4 Selector, 5 Engine, 6 Ready,
+# 7 Deadline, 8 Select, 9 Accept, 10 Connect, 11 Registration,
+# 12 Read, 13 Write, 14 Half-close, 15 Drop, 16 Close, 17 Usage, 18 Report.
+CURRENT_STAGE=1
+ERRNOS={code:index for index,code in enumerate((errno.EADDRINUSE,errno.ECONNREFUSED,
+    errno.ECONNRESET,errno.EPIPE,errno.ENOTCONN,errno.EBADF,errno.ETIMEDOUT,
+    errno.EMFILE,errno.ENOMEM,errno.ENOBUFS,errno.EACCES,errno.EPERM,
+    errno.EINVAL,errno.EHOSTUNREACH,errno.ENETUNREACH,errno.EIO,errno.EINTR),1)}
+
+
+def mark(stage):
+    """Feste Source-Stage, ausschließlich im einen internen RAM-Loop."""
+    global CURRENT_STAGE
+    CURRENT_STAGE=stage
+
+
+def error_numbers(error):
+    """Nur feste Typ- und POSIXkategorien; niemals str/repr/args/Rohfehler."""
+    category=(2 if isinstance(error,TimeoutError) else
+        3 if isinstance(error,(InterruptedError,KeyboardInterrupt)) else
+        5 if isinstance(error,MemoryError) else 1 if isinstance(error,ValueError) else
+        4 if isinstance(error,OSError) else 6)
+    code=None
+    if isinstance(error,OSError):
+        try:value=error.errno
+        except BaseException:value=None
+        if type(value) is int:code=ERRNOS.get(value)
+    return category,code
+
+
+def observed_usage():
+    """Tatsächliche eigene Linux-rusage-Zahlen oder null, ohne Budget-/Erfolgsbehauptung."""
+    try:
+        usage=resource.getrusage(resource.RUSAGE_SELF)
+        rss=int(usage.ru_maxrss)*1024;cpu=int((usage.ru_utime+usage.ru_stime)*1000)
+        require(0<rss<=10**15 and 0<=cpu<=10**15)
+        return rss,cpu
+    except BaseException:return None,None
+
 
 def require(value):
     """Nur geschlossene interne Vertragsverletzung, niemals Rohmaterial."""
@@ -76,11 +117,12 @@ class Pair:
         """Erst nach Drain der zugehörigen Richtung FIN weiterreichen, nie Bytes verwerfen."""
         if (self.peer(sock) in self.read_closed and not self.buffers[sock]
                 and sock not in self.write_closed and not (sock is self.upstream and self.connecting)):
-            sock.shutdown(socket.SHUT_WR);self.write_closed.add(sock)
+            mark(14);sock.shutdown(socket.SHUT_WR);self.write_closed.add(sock)
 
     def read(self,sock,now):
         if not self.can_read(sock):return
         peer=self.peer(sock)
+        mark(12)
         try:raw=sock.recv(min(CHUNK_BYTES,BUFFER_BYTES-len(self.buffers[peer])))
         except BlockingIOError:return
         if raw:self.buffers[peer].extend(raw);self.last_activity=now
@@ -88,6 +130,7 @@ class Pair:
 
     def write(self,sock,now):
         if not self.buffers[sock]:return
+        mark(13)
         try:count=sock.send(bytes(self.buffers[sock]))
         except BlockingIOError:return
         require(type(count) is int and 0<count<=len(self.buffers[sock]))
@@ -99,8 +142,9 @@ class Pair:
 
     def close(self):
         """Beide Richtungen schließen auch wenn die erste Close-Aktion fehlschlägt."""
+        mark(16)
         try:self.client.close()
-        finally:self.upstream.close()
+        finally:mark(16);self.upstream.close()
 
 
 class Engine:
@@ -111,6 +155,7 @@ class Engine:
         selector.register(listener,selectors.EVENT_READ,None)
 
     def refresh(self,pair):
+        mark(11)
         for sock in pair.sockets:
             mask=0
             if sock is pair.upstream and pair.connecting:mask=selectors.EVENT_WRITE
@@ -123,13 +168,14 @@ class Engine:
             elif mask:self.selector.register(sock,mask,pair);pair.registered.add(sock)
 
     def accept(self):
+        mark(9)
         try:client,source=self.listener.accept()
         except BlockingIOError:return
         upstream=None
         try:
             require(type(source) is tuple and source[0]=='127.0.0.1')
             if len(self.pairs)>=MAX_PAIRS:client.close();return
-            client.setblocking(False);upstream=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+            mark(10);client.setblocking(False);upstream=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
             upstream.setblocking(False);code=upstream.connect_ex((self.address,8443))
             require(code in (0,errno.EINPROGRESS,errno.EWOULDBLOCK,errno.EALREADY))
             pair=Pair(client,upstream,self.clock());pair.connecting=code!=0
@@ -145,25 +191,28 @@ class Engine:
         if pair not in self.pairs:return
         # Vor Close inaktiv machen: auch ein noch gelieferter Key oder ein zweiter
         # Drop darf keine fremde/erneut geschlossene Socketaktion auslösen.
-        self.pairs.remove(pair);error=None
+        self.pairs.remove(pair);error=None;error_stage=None
         for sock in tuple(pair.registered):
-            try:self.selector.unregister(sock)
-            except BaseException as caught:error=error or caught
+            try:mark(15);self.selector.unregister(sock)
+            except BaseException as caught:
+                if error is None:error=caught;error_stage=CURRENT_STAGE
         pair.registered.clear()
         try:pair.close()
-        except BaseException as caught:error=error or caught
-        if error is not None:raise error
+        except BaseException as caught:
+            if error is None:error=caught;error_stage=CURRENT_STAGE
+        if error is not None:mark(error_stage);raise error
 
     def step(self):
         """Nur tatsächliche Clientverbindungen führen zum festen upstream; keine Probe."""
-        now=self.clock()
+        mark(7);now=self.clock()
         if now-self.started>=LIFETIME:raise TimeoutError('Relay-Gesamtgrenze.')
         for pair in tuple(self.pairs):
-            try:pair.check_deadlines(now)
+            try:mark(7);pair.check_deadlines(now)
             except TimeoutError:
                 if pair.connecting:raise
                 # Normaler inaktiver HTTP-Keepalive bekommt keine unbegrenzte Lebenszeit.
                 self.drop(pair)
+        mark(8)
         for key,mask in self.selector.select(0.1):
             pair=key.data
             if pair is None:self.accept();continue
@@ -173,7 +222,7 @@ class Engine:
             sock=key.fileobj
             try:
                 if sock is pair.upstream and pair.connecting:
-                    require(sock.getsockopt(socket.SOL_SOCKET,socket.SO_ERROR)==0)
+                    mark(10);require(sock.getsockopt(socket.SOL_SOCKET,socket.SO_ERROR)==0)
                     pair.connecting=False;pair.half_close(sock)
                 if mask&selectors.EVENT_READ:pair.read(sock,self.clock())
                 if mask&selectors.EVENT_WRITE:pair.write(sock,self.clock())
@@ -186,13 +235,15 @@ class Engine:
 
     def close(self):
         """Alle eigenen FDs selbst bei einer Close-Ausnahme weiter schließen."""
-        error=None
+        error=None;error_stage=None
         for pair in tuple(self.pairs):
             try:self.drop(pair)
-            except BaseException as caught:error=error or caught
+            except BaseException as caught:
+                if error is None:error=caught;error_stage=CURRENT_STAGE
+        mark(16)
         try:self.listener.close()
-        finally:self.selector.close()
-        if error is not None:raise error
+        finally:mark(16);self.selector.close()
+        if error is not None:mark(error_stage);raise error
 
 
 def measurements():
@@ -206,30 +257,55 @@ def measurements():
 
 
 def main():
-    """Nur interne eine RAM-Pipe, zwei geschlossene Ausgaben; sämtliche Rohfehler verworfen."""
-    engine=None;listener=None;selector=None
+    """Dieselben Aktionen/Exitentscheidungen, Fehler nur als gebundene Zahlenzeile.
+
+    Die erste wirklich entwichene Ursache wird VOR den bisherigen Closeversuchen
+    festgehalten. Spätere Closefehler bleiben separat. Keine Fehlertoleranz oder
+    zusätzliche Probe; Ressourcen im Fehlerbericht sind kein erfolgreicher Budgetbeleg.
+    """
+    engine=None;listener=None;selector=None;failure=None;close_failure=None;closed=None
     try:
-        require(sys.argv==[sys.argv[0]] and sys.platform=='linux')
+        mark(1);require(sys.argv==[sys.argv[0]] and sys.platform=='linux')
         raw=sys.stdin.buffer.readline(1025);require(len(raw)<=1024 and raw.endswith(b'\n'))
-        address=target_address(json.loads(raw));apply_limits()
+        address=target_address(json.loads(raw));mark(2);apply_limits()
         # Kein Core-Dump der transienten TLS-Bytes; zusätzliche Schutzverengung.
         resource.setrlimit(resource.RLIMIT_CORE,(0,0))
-        listener=open_listener();selector=selectors.DefaultSelector();engine=Engine(listener,address,selector)
+        mark(3);listener=open_listener();mark(4);selector=selectors.DefaultSelector()
+        mark(5);engine=Engine(listener,address,selector)
         def stop(_signal,_frame):engine.stopped=True
-        signal.signal(signal.SIGTERM,stop);signal.signal(signal.SIGINT,stop)
+        mark(6);signal.signal(signal.SIGTERM,stop);signal.signal(signal.SIGINT,stop)
         print('{"ready":true}',flush=True)
         while not engine.stopped:engine.step()
-        engine.close();engine=None;listener=None;selector=None
-        print(json.dumps(measurements(),sort_keys=True),flush=True);return 0
-    except BaseException:
-        # Keine URL, Payload, Ziel-IP, Zertifikate oder Exceptionrepr/-text ausgeben.
+        engine.close();closed=True;engine=None;listener=None;selector=None
+        mark(17);value=measurements();mark(18)
+        print(json.dumps(value,sort_keys=True),flush=True);return 0
+    except BaseException as error:
+        failure=(CURRENT_STAGE,*error_numbers(error))
+        # Ein erster tatsächlicher Drop-/Closefehler wird nicht durch einen
+        # späteren erneut erfolgreichen Versuch zur geschlossenen FD-Abnahme.
+        if CURRENT_STAGE in (15,16):close_failure=failure;closed=False
         return 1
     finally:
-        if engine is not None:
-            try:engine.close()
-            except BaseException:pass
-        else:
-            if listener is not None:listener.close()
-            if selector is not None:selector.close()
+        had_handles=engine is not None or listener is not None or selector is not None
+        try:
+            # Exakt dieselben bisherigen eigenen Closeversuche, vor jeder Diagnose.
+            if engine is not None:engine.close()
+            else:
+                mark(16)
+                if listener is not None:listener.close()
+                if selector is not None:selector.close()
+            if had_handles and close_failure is None:closed=True
+        except BaseException as error:
+            closed=False
+            if close_failure is None:close_failure=(CURRENT_STAGE,*error_numbers(error))
+        if failure is not None:
+            rss,cpu=observed_usage()
+            value=dict(failed=True,stage=failure[0],error=failure[1],errno_category=failure[2],
+                closed=closed,close_stage=None if close_failure is None else close_failure[0],
+                close_error=None if close_failure is None else close_failure[1],
+                close_errno_category=None if close_failure is None else close_failure[2],
+                peak_rss_bytes=rss,cpu_millis=cpu)
+            try:print(json.dumps(value,sort_keys=True),flush=True)
+            except BaseException:pass  # Nicht beschreibbare eigene Pipe bleibt unbekannt/Exit1.
 
 if __name__=='__main__':sys.exit(main())

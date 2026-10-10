@@ -38,7 +38,7 @@ INSPECT='{'+','.join('"'+key+'":{{json ('+expression+')}}' for key,expression in
 # Feste Diagnosewerte, niemals Befehle, Exceptiontexte oder fremde Antworten.
 PHASES=frozenset({'preflight','freshness','prepare','browser_preflight',
     'browser_calibration_process','browser_calibration_report','docker_preflight',
-    'pull','start','sampling','auth','auth_report','discovery_report','loopback_report','relay_start','relay_monitor','relay_close','verify','stop','cleanup'} |
+    'pull','start','sampling','auth','auth_report','discovery_report','loopback_report','relay_start','relay_monitor','relay_close','relay_report','verify','stop','cleanup'} |
     {'browser_probe_'+value for value in ['modules','contract','certificate','fixture','browser','allowed',
         'redirect_ip_blocked','redirect_host_blocked','direct_ip','websocket','serviceworker',
         'context_close','browser_close','proxy_close','allowed_close','marker_close']})
@@ -154,6 +154,29 @@ def relay_result(value):
         and value['closed'] is True and all(type(value[k]) is int and value[k]==v for k,v in limits.items())
         and type(value['peak_rss_bytes']) is int and 0<value['peak_rss_bytes']<=limits['address_space_limit_bytes']
         and type(value['cpu_millis']) is int and 0<=value['cpu_millis']<=30000)
+    return value
+
+
+def relay_failure_result(value):
+    """Nur eigene tatsächliche Fehlerzahlen; niemals erfolgreicher Relay-/Budgetvertrag.
+
+    POSIXwerte sind feste Sourcekategorien 1–17, nicht variable Plattform-Errnos.
+    Fehlende rusage/Closebelege bleiben null. Echte Werte oberhalb der Limits
+    bleiben als Fehlerbeobachtung erhalten, niemals als akzeptierte Grenze.
+    """
+    keys={'failed','stage','error','errno_category','closed','close_stage','close_error',
+        'close_errno_category','peak_rss_bytes','cpu_millis'}
+    number=lambda value,maximum:type(value) is int and 1<=value<=maximum
+    require(type(value) is dict and set(value)==keys and value['failed'] is True
+        and number(value['stage'],18) and number(value['error'],6)
+        and (value['errno_category'] is None or number(value['errno_category'],17))
+        and (value['closed'] is None or type(value['closed']) is bool))
+    close=(value['close_stage'],value['close_error'],value['close_errno_category'])
+    require((close==(None,None,None) and value['closed'] is not False) or
+        (value['closed'] is False and type(close[0]) is int and close[0] in (15,16) and number(close[1],6)
+         and (close[2] is None or number(close[2],17))))
+    for key,minimum in [('peak_rss_bytes',1),('cpu_millis',0)]:
+        require(value[key] is None or type(value[key]) is int and minimum<=value[key]<=10**15)
     return value
 
 
@@ -318,7 +341,7 @@ class Rig:
         self.report={'success':False,'runtime_started':False,'cleanup_complete':False,
             'sample_count':0,'samples_are_discrete':True,'container_reads_are_sequential':True,
             'oom_observed':False,'peak_memory_bytes_approx':0,'per_service':{},'disk':{}}
-        self.owned=False;self.startup_tls_id=None;self.relay_process=None
+        self.owned=False;self.startup_tls_id=None;self.relay_process=None;self.relay_start_failure=None
         self.current_phase='preflight';self.failure_ids=set();self.report['failures']=[]
         # Childumgebung ist eine Whitelist: kein GH-/Cloud-/IdP-/Vaulttoken in Browser oder Containerstarts.
         self.env={key:os.environ[key] for key in ['PATH','LANG','LC_ALL'] if key in os.environ}
@@ -340,7 +363,7 @@ class Rig:
         if len(rows)>=3:
             if phase not in ('stop','cleanup','relay_close'):return
             replace=next((index for index in range(len(rows)-1,0,-1)
-                if rows[index]['phase'] in ('auth_report','discovery_report','loopback_report')),None)
+                if rows[index]['phase'] in ('auth_report','discovery_report','loopback_report','relay_report')),None)
             if replace is None:return
         value=failure_projection(phase,error)
         if replace is not None:del rows[replace]
@@ -576,6 +599,9 @@ class Rig:
                 except BlockingIOError:continue
                 require(bool(part));data.extend(part);require(len(data)<=1024)
             value=proof.decode(bytes(data))
+            if type(value) is dict and value.get('failed') is True:
+                # Noch kein Exitbeleg: nur RAM merken, Start bleibt strikt rot.
+                self.relay_start_failure=relay_failure_result(value)
             require(type(value) is dict and set(value)=={'ready'} and value['ready'] is True)
         finally:os.set_blocking(fd,True)
 
@@ -608,8 +634,23 @@ class Rig:
                         try:raw,_=process.communicate(timeout=5)
                         except subprocess.TimeoutExpired:
                             self.stop_process(process);raise
+                        if process.returncode!=0:
+                            error=ProcessExitError(process.returncode)
+                            # Unknown behält exakt den bisherigen strengen Größenpfad.
+                            # Nur ein wirklich bekannter Fehlstatus hat Exitvorrang.
+                            if error.exit_code is None:require(len(raw)<=1024)
+                            # Tatsächlicher Childexit zuerst; nur dessen eigene Pipe
+                            # darf eine optionale geschlossene Diagnose ergänzen.
+                            self.note_failure('relay_close',error)
+                            try:
+                                if error.exit_code is not None:
+                                    require(len(raw)<=1024)
+                                    if raw:self.report['relay_failure']=relay_failure_result(proof.decode(raw))
+                                    elif self.relay_start_failure is not None:
+                                        self.report['relay_failure']=relay_failure_result(self.relay_start_failure)
+                            except BaseException as report_error:self.note_failure('relay_report',report_error)
+                            raise error
                         require(len(raw)<=1024)
-                        if process.returncode!=0:raise ProcessExitError(process.returncode)
                         self.report['relay']=relay_result(proof.decode(raw))
                         if 'peak_memory_bytes' in self.report:
                             # Summe zweier verschiedenzeitiger echter Peaks: konservative
@@ -623,7 +664,7 @@ class Rig:
                         finally:
                             for stream in (process.stdin,process.stdout):
                                 if stream is not None:stream.close()
-                            self.relay_process=None
+                            self.relay_process=None;self.relay_start_failure=None
 
     def tls_loopback_snapshot(self):
         """Genau ein Format-Inspect des beim Start gebundenen eigenen TLS-CIDs.

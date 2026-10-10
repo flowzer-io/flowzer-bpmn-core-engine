@@ -361,4 +361,227 @@ class RelayTests(unittest.TestCase):
                 b.client.close.assert_not_called();b.upstream.close.assert_not_called()
                 engine.close();b.client.close.assert_called_once();b.upstream.close.assert_called_once()
 
+    def test_actual_child_half_close_failure_emits_only_numeric_stage_and_real_usage(self):
+        # Testzweck: Echter main→Engine.step→Pair.read→half_close-Mockpfad:
+        # ENOTCONN bleibt fatal; erste Stage/Errno und tatsächliches eigenes rusage
+        # werden nach echtem Close projiziert, niemals Ausnahme/TLSbytes/IP/URL.
+        m=self.module();listener=Mock();selector=Mock();client=Mock();upstream=Mock()
+        client.recv.return_value=b'';upstream.shutdown.side_effect=OSError(errno.ENOTCONN,'private-wire')
+        original=m.Engine
+        class BoundEngine(original):
+            def __init__(self,*args):
+                super().__init__(*args,clock=lambda:0);pair=m.Pair(client,upstream,0);self.pairs=[pair]
+                pair.registered=set(pair.sockets)
+                selector.select.return_value=[(type('Key',(),dict(data=pair,fileobj=client))(),m.selectors.EVENT_READ)]
+        output=io.StringIO();input_stream=Mock();input_stream.buffer.readline.return_value=json.dumps({'address':ADDRESS}).encode()+b'\n'
+        usage=type('Usage',(),dict(ru_maxrss=12345,ru_utime=1.25,ru_stime=.75))()
+        with patch.object(m.sys,'argv',['relay.py']),patch.object(m.sys,'platform','linux'),\
+                patch.object(m.sys,'stdin',input_stream),patch.object(m.sys,'stdout',output),\
+                patch.object(m,'apply_limits'),patch.object(m.resource,'setrlimit'),\
+                patch.object(m,'open_listener',return_value=listener),patch.object(m.selectors,'DefaultSelector',return_value=selector),\
+                patch.object(m,'Engine',BoundEngine),patch.object(m.signal,'signal'),\
+                patch.object(m.resource,'getrusage',return_value=usage):
+            self.assertEqual(1,m.main())
+        lines=output.getvalue().splitlines();self.assertEqual(2,len(lines),'Fehlender gebundener numerischer Relay-Fehlerbericht')
+        self.assertEqual({'ready':True},json.loads(lines[0]))
+        expected=dict(failed=True,stage=14,error=4,errno_category=5,closed=True,
+            close_stage=None,close_error=None,close_errno_category=None,peak_rss_bytes=12345*1024,cpu_millis=2000)
+        self.assertEqual(expected,json.loads(lines[1]));self.assertNotIn('private-wire',output.getvalue())
+        client.close.assert_called_once();upstream.close.assert_called_once();listener.close.assert_called_once();selector.close.assert_called_once()
+
+    def test_actual_child_preserves_primary_select_error_and_separate_failed_close_unknown_usage(self):
+        # Testzweck: Tatsächlicher main-/Selectorpfad: primäre I/O-Ursache und
+        # späterer Closefehler getrennt; fehlendes rusage ist null, niemals Nullwert.
+        m=self.module();listener=Mock();selector=Mock();selector.select.side_effect=OSError(errno.EIO,'private-primary')
+        listener.close.side_effect=OSError(errno.EBADF,'private-close')
+        output=io.StringIO();input_stream=Mock();input_stream.buffer.readline.return_value=json.dumps({'address':ADDRESS}).encode()+b'\n'
+        with patch.object(m.sys,'argv',['relay.py']),patch.object(m.sys,'platform','linux'),\
+                patch.object(m.sys,'stdin',input_stream),patch.object(m.sys,'stdout',output),\
+                patch.object(m,'apply_limits'),patch.object(m.resource,'setrlimit'),\
+                patch.object(m,'open_listener',return_value=listener),patch.object(m.selectors,'DefaultSelector',return_value=selector),\
+                patch.object(m.signal,'signal'),patch.object(m.resource,'getrusage',side_effect=OSError(errno.EIO,'private-usage')):
+            self.assertEqual(1,m.main())
+        lines=output.getvalue().splitlines();self.assertEqual(2,len(lines),'Eigene primäre/Close-Zahlen fehlen')
+        self.assertEqual(dict(failed=True,stage=8,error=4,errno_category=16,closed=False,
+            close_stage=16,close_error=4,close_errno_category=6,peak_rss_bytes=None,cpu_millis=None),json.loads(lines[1]))
+        selector.close.assert_called_once();self.assertNotIn('private',output.getvalue())
+
+    def test_closed_failed_relay_contract_never_becomes_success_or_exports_strings(self):
+        # Testzweck: Eigene Fehlerdiagnose ist exakt numeric/bool/null, unabhängig
+        # vom Erfolgs-/Budgetvertrag. Unknown/echte Überschreitung sind nicht Erfolg.
+        project=getattr(runner,'relay_failure_result',None);self.assertTrue(callable(project),'Geschlossener Relay-Fehlervertrag fehlt')
+        value=dict(failed=True,stage=14,error=4,errno_category=5,closed=True,
+            close_stage=None,close_error=None,close_errno_category=None,peak_rss_bytes=70000000,cpu_millis=31000)
+        self.assertEqual(value,project(value))
+        with self.assertRaises(ValueError):runner.relay_result(value)
+        self.assertEqual(value|{'peak_rss_bytes':None,'cpu_millis':None},project(value|{'peak_rss_bytes':None,'cpu_millis':None}))
+        for bad in [value|{'failed':False},value|{'stage':True},value|{'stage':19},value|{'error':7},
+            value|{'errno_category':18},value|{'closed':False},value|{'close_stage':16},
+            value|{'peak_rss_bytes':0},value|{'cpu_millis':True},value|{'raw':'private'}]:
+            with self.subTest(),self.assertRaises(ValueError):project(bad)
+
+    def test_actual_session_nonzero_exit_retains_numeric_failure_without_resource_acceptance(self):
+        # Testzweck: Echter Session-finally-Pfad liest ausschließlich nach realem
+        # Childexit1 die eigene geschlossene Pipe; kein Relay-/Gesamtressourcenerfolg.
+        value=dict(failed=True,stage=14,error=4,errno_category=5,closed=True,
+            close_stage=None,close_error=None,close_errno_category=None,peak_rss_bytes=20000000,cpu_millis=12)
+        with self.rig() as rig:
+            rig.relay_target=Mock(return_value=ADDRESS);rig.relay_ready=Mock()
+            child=Mock(pid=2468,returncode=1);child.stdin=Mock();child.stdout=Mock();child.poll.side_effect=[None,1,1]
+            child.communicate.return_value=(json.dumps(value).encode(),None);rig.report['peak_memory_bytes']=1234
+            with patch.object(runner.subprocess,'Popen',return_value=child),patch.object(runner.os,'killpg') as kill:
+                with self.assertRaises(runner.ProcessExitError) as raised:
+                    with rig.transport_session():pass
+            self.assertEqual(1,raised.exception.exit_code);self.assertEqual(value,rig.report.get('relay_failure'),'Fehldiagnose wurde trotz tatsächlichem Exit verloren')
+            self.assertNotIn('relay',rig.report);self.assertNotIn('peak_memory_with_relay_upper_bound_bytes',rig.report)
+            self.assertEqual([dict(phase='relay_close',error='process_exit',exit_code=1)],rig.report['failures'])
+            kill.assert_not_called();self.assertIsNone(rig.relay_process)
+
+    def test_actual_full_run_invalid_relay_diagnosis_keeps_primary_exit_and_real_cleanup(self):
+        # Testzweck: Optionaler manipulierter Zahlenbericht verdrängt weder echte
+        # Auth-/Relayexitursache noch Cleanup innerhalb Max3 im tatsächlichen Run.
+        with test_diagnostics.DiagnosticsTests().synthetic_runtime() as rig:
+            primary=runner.MeasuredProcessExitError(1);cleanup=OSError('private-cleanup')
+            rig.relay_target=Mock(return_value=ADDRESS);rig.relay_ready=Mock()
+            child=Mock(pid=2468,returncode=1);child.stdin=Mock();child.stdout=Mock();child.poll.side_effect=[None,1,1]
+            child.communicate.return_value=(b'{"raw":"private-wire"}',None)
+            def measured(args,**kwargs):
+                rig.report['sample_count']=1
+                if args[0]=='node':raise primary
+            rig.measured_command=Mock(side_effect=measured)
+            rows=[container(service) for service in runner.BUDGETS];rig.inventory=Mock(side_effect=[[],rows,rows,[]])
+            original=rig.command
+            def command(args,**kwargs):
+                if 'down' in args:raise cleanup
+                return original(args,**kwargs)
+            rig.command=Mock(side_effect=command)
+            with patch.object(runner.subprocess,'Popen',return_value=child),patch.object(runner.os,'killpg'):
+                with self.assertRaises(OSError) as raised:rig.run()
+            self.assertIs(cleanup,raised.exception)
+            actual=json.loads((rig.root/'report/resource-result.json').read_text())
+            self.assertEqual([dict(phase='auth',error='process_exit',exit_code=1),
+                dict(phase='relay_close',error='process_exit',exit_code=1),
+                dict(phase='cleanup',error='io',exit_code=None)],actual['failures'])
+            self.assertFalse(actual['cleanup_complete']);self.assertFalse(actual['success']);self.assertNotIn('relay_failure',actual)
+            self.assertNotIn('private',json.dumps(actual))
+            self.assertIn('relay_report',runner.PHASES,'Optionale Relaydiagnosephase fehlt')
+
+    def test_actual_start_failure_is_ram_only_until_observed_nonzero_child_exit(self):
+        # Testzweck: Auch vor Readiness verbrauchte Fehlerzeile bleibt RAM-only
+        # bis echter Childexit1; Start wird niemals als bereit/erfolgreich angenommen.
+        value=dict(failed=True,stage=3,error=4,errno_category=1,closed=None,
+            close_stage=None,close_error=None,close_errno_category=None,peak_rss_bytes=None,cpu_millis=None)
+        with self.rig() as rig:
+            rig.relay_target=Mock(return_value=ADDRESS)
+            child=Mock(pid=2468,returncode=1);child.stdin=Mock();child.stdout=Mock();child.stdout.fileno.return_value=7
+            child.poll.return_value=1;child.communicate.return_value=(b'',None)
+            with patch.object(runner.subprocess,'Popen',return_value=child),patch.object(runner.os,'killpg') as kill,\
+                    patch.object(runner.select,'select',return_value=([child.stdout],[],[])),\
+                    patch.object(runner.os,'set_blocking'),patch.object(runner.os,'read',return_value=json.dumps(value).encode()+b'\n'),\
+                    patch.object(runner.time,'monotonic',return_value=0):
+                with self.assertRaises(runner.ProcessExitError):
+                    with rig.transport_session():self.fail('Fehlerzeile wurde als ready akzeptiert')
+            self.assertEqual(value,rig.report.get('relay_failure'),'Vor Ready verbrauchte eigene Fehlerzeile fehlt nach Exit1')
+            self.assertEqual(['relay_start','relay_close'],[row['phase'] for row in rig.report['failures']]);kill.assert_not_called()
+
+    def test_numeric_exception_projection_never_reads_repr_args_or_unknown_errno_as_zero(self):
+        # Testzweck: Nur feste Typ-/POSIXkategorien; keine Rohfehlergetter und
+        # unbekannte Errno wird null statt Erfolg/Nullcode, auch bei Unterklassen.
+        m=self.module();project=getattr(m,'error_numbers',None);self.assertTrue(callable(project),'Numerische Ausnahmeprojektion fehlt')
+        class PrivateError(OSError):
+            def __str__(self):raise AssertionError('private text accessed')
+            def __repr__(self):raise AssertionError('private repr accessed')
+            def __getattribute__(self,name):
+                if name in ('args','filename','filename2','strerror'):raise AssertionError('private raw accessed')
+                return super().__getattribute__(name)
+        self.assertEqual((4,5),project(PrivateError(errno.ENOTCONN,'private')))
+        self.assertEqual((4,None),project(PrivateError(999999,'private')))
+        self.assertEqual((2,None),project(TimeoutError('private')))
+        self.assertEqual((1,None),project(ValueError('private')))
+        self.assertEqual((3,None),project(KeyboardInterrupt()))
+        self.assertEqual((5,None),project(MemoryError('private')))
+        self.assertEqual((6,None),project(RuntimeError('private')))
+
+    def test_actual_unknown_child_exit_never_publishes_pipe_diagnosis_as_observed_failure(self):
+        # Testzweck: Eine gültige eigene Pipe allein beweist keinen POSIX-Exit.
+        # Tatsächlich fehlender Childstatus bleibt null, Fehlerdiagnose RAM-only.
+        value=dict(failed=True,stage=14,error=4,errno_category=5,closed=True,
+            close_stage=None,close_error=None,close_errno_category=None,peak_rss_bytes=20000000,cpu_millis=12)
+        with self.rig() as rig:
+            rig.relay_target=Mock(return_value=ADDRESS);rig.relay_ready=Mock();rig.stop_process=Mock()
+            child=Mock(pid=2468,returncode=None);child.stdin=Mock();child.stdout=Mock();child.poll.return_value=None
+            child.communicate.return_value=(json.dumps(value).encode(),None)
+            with patch.object(runner.subprocess,'Popen',return_value=child),patch.object(runner.os,'killpg'):
+                with self.assertRaises(runner.ProcessExitError) as raised:
+                    with rig.transport_session():pass
+            self.assertIsNone(raised.exception.exit_code)
+            self.assertNotIn('relay_failure',rig.report,'Pipe ohne tatsächlichen Exit wurde als Fehlnachweis exportiert')
+            self.assertNotIn('relay',rig.report);self.assertFalse(rig.report['success'])
+            self.assertEqual([dict(phase='relay_close',error='process_exit',exit_code=None)],rig.report['failures'])
+            rig.stop_process.assert_called_once_with(child)
+
+    def test_actual_known_nonzero_relay_exit_precedes_oversized_optional_report(self):
+        # Testzweck (RELAY-FAILURE-P2-01): Echter Session-finally-Mockpfad mit
+        # Exit1 und Signalexit; 1025 eigene Pipebytes dürfen den wirklichen Exit
+        # nie in validation/null verwandeln. Größe bleibt streng/Report optional.
+        for code in (1,-15):
+            with self.subTest(exit_code=code),self.rig() as rig:
+                rig.relay_target=Mock(return_value=ADDRESS);rig.relay_ready=Mock()
+                child=Mock(pid=2468,returncode=code);child.stdin=Mock();child.stdout=Mock();child.poll.side_effect=[None,code,code]
+                child.communicate.return_value=(b'x'*1025,None)
+                with patch.object(runner.subprocess,'Popen',return_value=child),patch.object(runner.os,'killpg') as kill:
+                    with self.assertRaises(ValueError) as raised:
+                        with rig.transport_session():pass
+                self.assertIsInstance(raised.exception,runner.ProcessExitError,'Überlanger Report verdeckte tatsächlich bekannten Relayexit')
+                self.assertEqual(code,raised.exception.exit_code)
+                self.assertEqual([dict(phase='relay_close',error='process_exit',exit_code=code),
+                    dict(phase='relay_report',error='validation',exit_code=None)],rig.report['failures'])
+                self.assertNotIn('relay_failure',rig.report);self.assertNotIn('relay',rig.report)
+                self.assertFalse(rig.report['success']);kill.assert_not_called();self.assertIsNone(rig.relay_process)
+                child.stdout.close.assert_called_once()
+
+    def test_actual_full_run_oversized_relay_report_preserves_auth_and_close_exits_and_cleanup(self):
+        # Testzweck (RELAY-FAILURE-P2-01): Voller Rig.run→Auth→Relay-Close→
+        # Docker-Cleanup-Mockpfad; gültige vorhandene Authzahlen bleiben erhalten,
+        # echte Ursachen zuerst, Größenbericht nur ergänzend innerhalb Max3.
+        with test_diagnostics.DiagnosticsTests().synthetic_runtime() as rig:
+            primary=runner.MeasuredProcessExitError(1);rig.relay_target=Mock(return_value=ADDRESS);rig.relay_ready=Mock()
+            child=Mock(pid=2468,returncode=1);child.stdin=Mock();child.stdout=Mock();child.poll.side_effect=[None,1,1]
+            child.communicate.return_value=(b'x'*1025,None)
+            attempt=dict(total=16,passed=2,failed=3,skipped=10,interrupted=0,errors=0,success=False,failed_test_indexes=[3,7,12])
+            def measured(args,**kwargs):
+                rig.report['sample_count']=1
+                if args[0]=='node':
+                    (rig.root/'auth-result.json').write_text(json.dumps(attempt));raise primary
+            rig.measured_command=Mock(side_effect=measured)
+            rows=[container(service) for service in runner.BUDGETS];rig.inventory=Mock(side_effect=[[],rows,rows,[]])
+            with patch.object(runner.subprocess,'Popen',return_value=child),patch.object(runner.os,'killpg'):
+                with self.assertRaises(ValueError) as raised:rig.run()
+            self.assertIsInstance(raised.exception,runner.ProcessExitError,'Voller Run verlor tatsächlichen Relayexit an Größenreport')
+            actual=json.loads((rig.root/'report/resource-result.json').read_text())
+            self.assertEqual([dict(phase='auth',error='process_exit',exit_code=1),
+                dict(phase='relay_close',error='process_exit',exit_code=1),
+                dict(phase='relay_report',error='validation',exit_code=None)],actual['failures'])
+            self.assertEqual(attempt,actual['auth_attempt']);self.assertTrue(actual['cleanup_complete'])
+            self.assertFalse(actual['success']);self.assertNotIn('relay_failure',actual);self.assertNotIn('relay',actual)
+            self.assertIsNone(rig.relay_process)
+
+    def test_actual_exit_zero_and_unknown_keep_strict_size_guard_without_failed_readback(self):
+        # Testzweck: Enger Provenienzfix ändert keinen erfolgreichen Exit0-Vertrag
+        # und keine Unknown-Statusannahme. Übergröße bleibt validation/null und rot,
+        # weder Erfolg noch nicht beobachtete Ressourcen/Closewerte werden exportiert.
+        for code in (0,None):
+            with self.subTest(exit_code=code),self.rig() as rig:
+                rig.relay_target=Mock(return_value=ADDRESS);rig.relay_ready=Mock();rig.stop_process=Mock()
+                child=Mock(pid=2468,returncode=code);child.stdin=Mock();child.stdout=Mock();child.poll.side_effect=[None,code,code]
+                child.communicate.return_value=(b'x'*1025,None)
+                with patch.object(runner.subprocess,'Popen',return_value=child),patch.object(runner.os,'killpg'):
+                    with self.assertRaises(ValueError) as raised:
+                        with rig.transport_session():pass
+                self.assertNotIsInstance(raised.exception,runner.ProcessExitError)
+                self.assertEqual([dict(phase='relay_close',error='validation',exit_code=None)],rig.report['failures'])
+                self.assertFalse(rig.report['success']);self.assertNotIn('relay_failure',rig.report);self.assertNotIn('relay',rig.report)
+                self.assertIsNone(rig.relay_process)
+                self.assertEqual(1 if code is None else 0,rig.stop_process.call_count)
+
 if __name__=='__main__':unittest.main()
