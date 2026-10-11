@@ -5,11 +5,9 @@ const { cookieHeaderFor, fetchInPage, loginWithBrowser, logoutWithBrowser, readS
 const { ensureBaseline, findUser, getUserToken } = require('../support/keycloak');
 const { AUTH_URL, BASE_URL, ISSUER, USERS } = require('../support/constants');
 
-test.describe('Golden Path', () => {
-  test.beforeAll(async () => {
-    await ensureBaseline();
-  });
-
+// Die anonyme Installationsprobe benötigt keine Keycloak-Adminrechte. Ein kaputtes
+// Auth-Fixture darf diesen Test weder verhindern noch als Healthfehler erscheinen.
+test.describe('Installation', () => {
   // Testzweck: Die Bereitschaftsprobe ueber TLS-Proxy und Konsolen-nginx meldet eine gesunde
   // Installation mit PostgreSQL auf aktuellem Migrationsstand.
   test('Readiness ist Healthy und die Migrationen sind aktuell', async () => {
@@ -20,6 +18,12 @@ test.describe('Golden Path', () => {
     expect(readiness.storage).toBe('Ready');
     expect(readiness.details.migrationState).toBe('UpToDate');
     expect(readiness.details.pendingMigrationCount).toBe(0);
+  });
+});
+
+test.describe('Golden Path', () => {
+  test.beforeAll(async () => {
+    await ensureBaseline();
   });
 
   // Testzweck: Ohne Sitzung und ohne Bearer weist ein Fachendpunkt anonym mit 401 ab und
