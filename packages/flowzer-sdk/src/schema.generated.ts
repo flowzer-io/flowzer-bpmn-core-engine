@@ -8814,6 +8814,7 @@ export interface components {
             /** Format: int32 */
             serviceSubscriptionCount?: number;
             state?: components["schemas"]["ProcessInstanceStateDto"];
+            outcome?: components["schemas"]["ProcessInstanceOutcomeDto"];
             wasWithdrawn?: boolean;
             tokens?: components["schemas"]["TokenDto"][] | null;
             canInspect?: boolean;
@@ -8837,6 +8838,8 @@ export interface components {
             errorMessage?: string | null;
             result?: components["schemas"]["ProcessInstanceInfoDto"][] | null;
         };
+        /** @enum {string} */
+        ProcessInstanceOutcomeDto: "Unknown" | "Approved" | "Rejected";
         /**
          * Format: int32
          * @enum {integer}

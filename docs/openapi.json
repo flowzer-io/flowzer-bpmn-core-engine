@@ -13614,6 +13614,9 @@
           "state": {
             "$ref": "#/components/schemas/ProcessInstanceStateDto"
           },
+          "outcome": {
+            "$ref": "#/components/schemas/ProcessInstanceOutcomeDto"
+          },
           "wasWithdrawn": {
             "type": "boolean"
           },
@@ -13689,6 +13692,14 @@
           }
         },
         "additionalProperties": false
+      },
+      "ProcessInstanceOutcomeDto": {
+        "enum": [
+          "Unknown",
+          "Approved",
+          "Rejected"
+        ],
+        "type": "string"
       },
       "ProcessInstanceStateDto": {
         "enum": [

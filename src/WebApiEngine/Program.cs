@@ -97,6 +97,10 @@ builder.Services.AddScoped<UserTaskLifecycleService>();
 builder.Services.AddScoped<UserTaskNotificationService>();
 builder.Services.AddSingleton<UserTaskDeadlineService>();
 builder.Services.AddScoped<InstanceAccessService>();
+builder.Services.AddScoped<WorkflowOutcomeProjector>();
+// Nicht ValidateOnStart: falsche/mehrdeutige Bindungen bleiben ohne fachliche Aussage.
+builder.Services.AddOptions<WorkflowOutcomeOptions>()
+    .Bind(builder.Configuration.GetSection(WorkflowOutcomeOptions.SectionName));
 builder.Services.AddScoped<RuntimeDiagramService>();
 builder.Services.AddScoped<WorkflowAnalyticsService>();
 builder.Services.AddSingleton<AiToolRegistry>();
