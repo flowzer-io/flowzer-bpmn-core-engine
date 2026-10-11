@@ -458,6 +458,10 @@ jobs:
           cache: npm
           cache-dependency-path: tests/installation-auth/package-lock.json
 
+      - name: Hermetische Auth-Spec-Regressionen pruefen
+        working-directory: tests/installation-auth
+        run: npm run test:source
+
       - name: Playwright-Abhaengigkeiten installieren
         working-directory: tests/installation-auth
         run: npm ci
