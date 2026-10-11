@@ -161,13 +161,13 @@ def relay_failure_result(value):
     """Nur eigene tatsächliche Fehlerzahlen; niemals erfolgreicher Relay-/Budgetvertrag.
 
     POSIXwerte sind feste Sourcekategorien 1–17, nicht variable Plattform-Errnos.
-    Fehlende rusage/Closebelege bleiben null. Echte Werte oberhalb der Limits
+    Fehlende rusage/Close-/Half-closebelege bleiben null. Echte Werte oberhalb der Limits
     bleiben als Fehlerbeobachtung erhalten, niemals als akzeptierte Grenze.
     """
     keys={'failed','stage','error','errno_category','closed','close_stage','close_error',
         'close_errno_category','peak_rss_bytes','cpu_millis'}
     number=lambda value,maximum:type(value) is int and 1<=value<=maximum
-    require(type(value) is dict and set(value)==keys and value['failed'] is True
+    require(type(value) is dict and set(value) in (keys,keys|{'half_close_state'}) and value['failed'] is True
         and number(value['stage'],18) and number(value['error'],6)
         and (value['errno_category'] is None or number(value['errno_category'],17))
         and (value['closed'] is None or type(value['closed']) is bool))
@@ -177,6 +177,25 @@ def relay_failure_result(value):
          and (close[2] is None or number(close[2],17))))
     for key,minimum in [('peak_rss_bytes',1),('cpu_millis',0)]:
         require(value[key] is None or type(value[key]) is int and minimum<=value[key]<=10**15)
+    if 'half_close_state' in value:
+        require(value['stage']==14)
+        state=value['half_close_state']
+        if state is not None:
+            booleans={'connecting','client_eof','upstream_eof','client_write_closed','upstream_write_closed'}
+            lengths={'client_buffer_bytes','upstream_buffer_bytes'}
+            require(type(state) is dict and set(state)==booleans|lengths|{'direction'}
+                and type(state['direction']) is int and state['direction'] in (1,2)
+                and all(type(state[key]) is bool for key in booleans)
+                and all(type(state[key]) is int and 0<=state[key]<=65536 for key in lengths))
+            # Der Bericht darf nur einen tatsächlich erreichbaren bestehenden
+            # Half-close-Aufruf bezeichnen, nicht FIN vor Drain/Pending Connect
+            # oder einen ohnehin terminalen Pairzustand erfinden.
+            target='client' if state['direction']==1 else 'upstream'
+            peer='upstream' if target=='client' else 'client'
+            require(state[peer+'_eof'] and state[target+'_buffer_bytes']==0
+                and not state[target+'_write_closed'] and not (target=='upstream' and state['connecting'])
+                and not (not state['connecting'] and state['client_eof'] and state['upstream_eof']
+                    and state['client_buffer_bytes']==state['upstream_buffer_bytes']==0))
     return value
 
 

@@ -34,6 +34,10 @@ PRIVATE_NETWORKS=tuple(ipaddress.ip_network(value) for value in
 # 7 Deadline, 8 Select, 9 Accept, 10 Connect, 11 Registration,
 # 12 Read, 13 Write, 14 Half-close, 15 Drop, 16 Close, 17 Usage, 18 Report.
 CURRENT_STAGE=1
+# Nur RAM: ein tatsächlicher fehlgeschlagener shutdown und sein unmittelbar
+# davor beobachteter Pairzustand. Exceptionidentität bindet den Snapshot; weder
+# Ausnahmeobjekt noch Socket-/Bufferidentitäten verlassen diesen Kindprozess.
+HALF_CLOSE_FAILURE=None
 ERRNOS={code:index for index,code in enumerate((errno.EADDRINUSE,errno.ECONNREFUSED,
     errno.ECONNRESET,errno.EPIPE,errno.ENOTCONN,errno.EBADF,errno.ETIMEDOUT,
     errno.EMFILE,errno.ENOMEM,errno.ENOBUFS,errno.EACCES,errno.EPERM,
@@ -58,6 +62,20 @@ def error_numbers(error):
         except BaseException:value=None
         if type(value) is int:code=ERRNOS.get(value)
     return category,code
+
+
+def half_close_failure_state(error):
+    """Nur Snapshot desselben tatsächlichen shutdown-Fehlers, vor Cleanup kopiert.
+
+    Eine frühere behandelte Ursache oder ein nicht beobachtbarer Zustand ist
+    ausdrücklich unbekannt. Der verbrauchte RAM-Beleg bleibt nicht als späterer
+    Cleanup-/Socketzustand erhalten; keine zusätzliche Socketabfrage.
+    """
+    global HALF_CLOSE_FAILURE
+    observed=HALF_CLOSE_FAILURE;HALF_CLOSE_FAILURE=None
+    if observed is not None and observed[0] is error and type(observed[1]) is dict:
+        return dict(observed[1])
+    return None
 
 
 def observed_usage():
@@ -118,6 +136,25 @@ class Pair:
         return (not self.connecting and all(sock in self.read_closed for sock in self.sockets)
             and not any(self.buffers.values()))
 
+    def half_close_state(self,sock):
+        """Nur bestehende RAM-Flags/Längen unmittelbar vor dem bestehenden FIN.
+
+        Keine Bytes, Adressen, FDs, Socket-/Kernelabfragen oder bool-Konvertierung
+        unbekannter Werte. Eine nicht beobachtbare Projektion bleibt komplett
+        null und beeinflusst niemals den ursprünglichen shutdown-/Exitweg.
+        """
+        try:
+            if sock is not self.client and sock is not self.upstream:return None
+            if type(self.connecting) is not bool or type(self.read_closed) is not set \
+                    or type(self.write_closed) is not set:return None
+            buffers=(self.buffers[self.client],self.buffers[self.upstream])
+            if any(type(buffer) is not bytearray or len(buffer)>BUFFER_BYTES for buffer in buffers):return None
+            return dict(direction=1 if sock is self.client else 2,connecting=self.connecting,
+                client_eof=self.client in self.read_closed,upstream_eof=self.upstream in self.read_closed,
+                client_write_closed=self.client in self.write_closed,upstream_write_closed=self.upstream in self.write_closed,
+                client_buffer_bytes=len(buffers[0]),upstream_buffer_bytes=len(buffers[1]))
+        except BaseException:return None
+
     def half_close(self,sock):
         """Erst nach Drain der zugehörigen Richtung FIN weiterreichen, nie Bytes verwerfen."""
         # Ein bereits vollständig beendetes Paar braucht keinen weiteren FIN.
@@ -125,7 +162,13 @@ class Pair:
         if self.finished():return
         if (self.peer(sock) in self.read_closed and not self.buffers[sock]
                 and sock not in self.write_closed and not (sock is self.upstream and self.connecting)):
-            mark(14);sock.shutdown(socket.SHUT_WR);self.write_closed.add(sock)
+            global HALF_CLOSE_FAILURE
+            state=self.half_close_state(sock);HALF_CLOSE_FAILURE=None
+            mark(14)
+            try:sock.shutdown(socket.SHUT_WR)
+            except BaseException as error:
+                HALF_CLOSE_FAILURE=(error,state);raise
+            self.write_closed.add(sock)
 
     def read(self,sock,now):
         if not self.can_read(sock):return
@@ -271,7 +314,9 @@ def main():
     festgehalten. Spätere Closefehler bleiben separat. Keine Fehlertoleranz oder
     zusätzliche Probe; Ressourcen im Fehlerbericht sind kein erfolgreicher Budgetbeleg.
     """
-    engine=None;listener=None;selector=None;failure=None;close_failure=None;closed=None
+    global HALF_CLOSE_FAILURE
+    HALF_CLOSE_FAILURE=None
+    engine=None;listener=None;selector=None;failure=None;close_failure=None;closed=None;half_close_state=None
     try:
         mark(1);require(sys.argv==[sys.argv[0]] and sys.platform=='linux')
         raw=sys.stdin.buffer.readline(1025);require(len(raw)<=1024 and raw.endswith(b'\n'))
@@ -289,6 +334,7 @@ def main():
         print(json.dumps(value,sort_keys=True),flush=True);return 0
     except BaseException as error:
         failure=(CURRENT_STAGE,*error_numbers(error))
+        if failure[0]==14:half_close_state=half_close_failure_state(error)
         # Ein erster tatsächlicher Drop-/Closefehler wird nicht durch einen
         # späteren erneut erfolgreichen Versuch zur geschlossenen FD-Abnahme.
         if CURRENT_STAGE in (15,16):close_failure=failure;closed=False
@@ -313,6 +359,9 @@ def main():
                 close_error=None if close_failure is None else close_failure[1],
                 close_errno_category=None if close_failure is None else close_failure[2],
                 peak_rss_bytes=rss,cpu_millis=cpu)
+            # Nur zur ersten tatsächlich gebundenen Stage14-Ursache, niemals
+            # aus späterem Cleanup oder einem zuvor behandelten Pairfehler.
+            if failure[0]==14:value['half_close_state']=half_close_state
             try:print(json.dumps(value,sort_keys=True),flush=True)
             except BaseException:pass  # Nicht beschreibbare eigene Pipe bleibt unbekannt/Exit1.
 

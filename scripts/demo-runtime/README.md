@@ -748,3 +748,56 @@ TCP-/Browser-/Dockerlauf und keine Probe; der bestehende Reader bleibt auf
 173 Git / 4 Ruby-YAML / 1 Node-VM begrenzt. Neue Whole-Freeze und unabhängiger
 explizit gewählter Sol-Codex-Gesamtreview stehen vor jeder späteren Publikation
 oder einem gesondert freigegebenen neuen Hosted-Erstlauf.
+
+
+### Eng gebundene RAM-Zustandsdiagnose des Half-close-Fehlers (Source-only)
+
+Der folgende tatsächliche Run `38100690936/a1` auf `030606458604b673189e85b7e74b897ffaa5cb97`
+bleibt **FAILURE**: Stage14/I/O4/ENOTCONN5, Auth- und Relayexit1, zehn diskrete
+Samples, eigener Relay-Close und Docker-Cleanup. Der terminale Pair-Guard hat
+also keine native Heilung belegt. Betroffener Socket-/Kernelzustand und konkrete
+Pairflags wurden auch in diesem Bericht nicht erfasst. Discovery200/Issuer/PKCE
+bleiben belegt; die Authindizes3/7/12 sind weiterhin keine Rollen-/Serverursache.
+
+Nur der schon vorhandene `shutdown(SHUT_WR)` bekommt eine optionale Beobachtung:
+Unmittelbar davor werden bestehende RAM-Flags und Bufferlängen kopiert. Nur die
+Identität der tatsächlich bei genau diesem Aufruf entwichenen Ausnahme kann
+diesen Snapshot an die erste Stage14-Ursache binden. Der Snapshot wird noch vor
+Cleanup verbraucht/kopiert; spätere EOF-/Write-/Buffer-/Connectänderungen erzeugen
+keinen neuen oder anderen Beleg. Keine zusätzliche Socket-/HTTP-/TCP-/DNS-/
+SO_ERROR-Abfrage, keine Bytes, Adressen, FDs, Identitäten oder Ausnahme-Rohtexte.
+
+Das optionale `relay_failure.half_close_state` ist entweder null (nicht beobachtet)
+oder exakt diese Whitelist: `direction`1=client/2=upstream, `connecting`,
+`client_eof`, `upstream_eof`, `client_write_closed`, `upstream_write_closed` als
+Booleans sowie `client_buffer_bytes`/`upstream_buffer_bytes` als ganze Zahlen
+0..65536. Unknown wird niemals durch bool-Konvertierung oder eine Nullzahl ersetzt.
+Der Runner prüft Typen, exakte Feldmenge und den bestehenden erreichbaren FIN-
+Vertrag (peerEOF, destinationBuffer leer, destinationWrite noch offen, kein FIN
+zum Pending-Upstream und kein terminales Pair). Alte Fehlberichte ohne Zusatzfeld
+bleiben exakt unverändert; fremde Strings/Felder oder widersprüchliche Zustände
+werden nur als optionaler Berichtsfehler abgelehnt. Erfolgsschema, echte Exits,
+Pipe1024, Max3, Auth/PKCE/TLS, Requests, Isolation, sämtliche Fristen/Ressourcen und
+Cleanup sind unverändert. ENOTCONN bleibt fatal. Diese Diagnose ist keine Heilung.
+
+Zehn bestätigte genuine Assertion-REDs in acht additiven Methoden gegen tatsächlich
+unveränderte Parent-Relay-/Runnerquelle wurden von **126 Python /21 Mock-Node ohne
+Skips** abgelöst. Insgesamt neun neue Methoden üben reale gemockte main/Engine/
+Pair-/Session-/Rig.run-Pfade, beide Richtungen, letzten Drain, originale Connect-
+Completion ohne Zusatzprobe, Unknown, Exceptionidentität, strenge Whitelist und
+unveränderte Legacy-Berichte. Von117 bisherigen Pythonmethoden bleiben116 bytegleich.
+Genau ein strenger main-Reporttest erweitert lediglich seine exakte Erwartung um
+den jetzt wirklich beobachteten Snapshot; sämtliche bisherigen zehn Werte und
+Assertions bleiben unverändert. Seine Originalbytes/Originalbelege bleiben archiviert.
+Keine künstliche Byte-Preservation und keine Assertionlockerung.
+
+Frühere eigene Fixture-/Harnessversuche werden nicht als Grün oder zusätzliche
+bestätigte REDs gezählt: Die Session-Readinessfixture meldete zuerst schon Exit0;
+der geschlossene stdin-Handle musste anschließend vor dessen None-Setzung separat
+gehalten werden. Der bestätigte neue RED-Lauf verwendet die korrigierte tatsächliche
+Session-/Runfixture gegen unveränderte Parentquelle. Ein TAP-Reader ohne expliziten
+Reporter fand keine festen Zähler; danach wurde der unveränderte Mock-Node-Lauf mit
+explizitem TAP-Reporter vollständig neu ausgeführt. Keine Rohfehler-/Logs gespeichert,
+kein lokaler TCP-/Browser-/Dockerlauf, keine Source-/Imageveröffentlichung oder neue
+Hosted-Runtime in diesem Diagnosecheckpoint. Leser-Allowlist bleibt173 Git/4 Ruby-
+YAML/1 Node-VM; Source- und native Abnahme bleiben getrennte Zustände.

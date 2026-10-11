@@ -386,6 +386,10 @@ class RelayTests(unittest.TestCase):
         self.assertEqual({'ready':True},json.loads(lines[0]))
         expected=dict(failed=True,stage=14,error=4,errno_category=5,closed=True,
             close_stage=None,close_error=None,close_errno_category=None,peak_rss_bytes=12345*1024,cpu_millis=2000)
+        # Notwendiger enger Schema-Update: alle bisherigen zehn Felder bleiben
+        # exakt gleich; nur der jetzt tatsächlich beobachtete Stage14-Snapshot kommt dazu.
+        expected['half_close_state']=dict(direction=2,connecting=False,client_eof=True,upstream_eof=False,
+            client_write_closed=False,upstream_write_closed=False,client_buffer_bytes=0,upstream_buffer_bytes=0)
         self.assertEqual(expected,json.loads(lines[1]));self.assertNotIn('private-wire',output.getvalue())
         client.close.assert_called_once();upstream.close.assert_called_once();listener.close.assert_called_once();selector.close.assert_called_once()
 
@@ -754,5 +758,195 @@ class RelayTests(unittest.TestCase):
         self.assertEqual(2,selector.unregister.call_count);engine.close()
         for sock in other.sockets:sock.close.assert_called_once()
         engine.listener.close.assert_called_once();selector.close.assert_called_once()
+
+    def half_close_child_case(self,destination='upstream',scenario='read',unknown=False):
+        """Nur echte main/Engine/Pair-Pfade mit gemockten FDs, keine lokale Runtime."""
+        m=self.module();listener=Mock();selector=Mock();client=Mock();upstream=Mock()
+        pair=m.Pair(client,upstream,0);sock=getattr(pair,destination);peer=pair.peer(sock)
+        failure=OSError(errno.ENOTCONN,'private-wire-never-export');sock.shutdown.side_effect=failure
+        pair.buffers[peer].extend(b'\x16\x03opaque\x00')
+        if scenario=='read':
+            peer.recv.return_value=b'';event_sock=peer;mask=m.selectors.EVENT_READ
+        elif scenario=='drain':
+            pair.read_closed=set(pair.sockets);pair.buffers[sock].extend(b'\x17\x03drain\x00')
+            sock.send.return_value=len(pair.buffers[sock]);event_sock=sock;mask=m.selectors.EVENT_WRITE
+        else:
+            self.assertEqual('connect',scenario);self.assertEqual('upstream',destination)
+            pair.connecting=True;pair.read_closed.add(client);upstream.getsockopt.return_value=0
+            event_sock=upstream;mask=m.selectors.EVENT_WRITE
+        pair.registered=set(pair.sockets);original=m.Engine
+        class BoundEngine(original):
+            def __init__(self,*args):
+                super().__init__(*args,clock=lambda:0);self.pairs=[pair]
+                selector.select.return_value=[(type('Key',(),dict(data=pair,fileobj=event_sock))(),mask)]
+        def mutate_cleanup():
+            # Cleanup darf den bereits gebundenen unmittelbaren Fehlerzustand nicht ersetzen.
+            pair.connecting=True;pair.read_closed.clear();pair.write_closed=set(pair.sockets)
+            for buffer in pair.buffers.values():buffer.clear()
+        client.close.side_effect=mutate_cleanup
+        stream=Mock();stream.buffer.readline.return_value=json.dumps({'address':ADDRESS}).encode()+b'\n'
+        output=io.StringIO();usage=type('Usage',(),dict(ru_maxrss=12345,ru_utime=1.25,ru_stime=.75))()
+        with contextlib.ExitStack() as stack:
+            for target,name,value in [(m.sys,'argv',['relay.py']),(m.sys,'platform','linux'),
+                    (m.sys,'stdin',stream),(m.sys,'stdout',output),(m,'open_listener',listener),
+                    (m.selectors,'DefaultSelector',selector),(m,'Engine',BoundEngine),
+                    (m.resource,'getrusage',usage)]:
+                stack.enter_context(patch.object(target,name,return_value=value) if name in
+                    ('open_listener','DefaultSelector','getrusage') else patch.object(target,name,value))
+            stack.enter_context(patch.object(m,'apply_limits'));stack.enter_context(patch.object(m.resource,'setrlimit'))
+            stack.enter_context(patch.object(m.signal,'signal'))
+            if unknown:stack.enter_context(patch.object(m.Pair,'half_close_state',return_value=None,create=True))
+            self.assertEqual(1,m.main())
+        lines=output.getvalue().splitlines();self.assertEqual(2,len(lines));self.assertEqual({'ready':True},json.loads(lines[0]))
+        report=json.loads(lines[1]);self.assertEqual((14,4,5),(report['stage'],report['error'],report['errno_category']))
+        self.assertTrue(report['closed']);self.assertEqual(12345*1024,report['peak_rss_bytes']);self.assertEqual(2000,report['cpu_millis'])
+        self.assertNotIn('private',output.getvalue());self.assertNotIn(ADDRESS,output.getvalue());self.assertNotIn('opaque',output.getvalue())
+        for owned in (client,upstream,listener,selector):owned.close.assert_called_once()
+        sock.shutdown.assert_called_once_with(m.socket.SHUT_WR)
+        for endpoint in pair.sockets:
+            endpoint.getpeername.assert_not_called();endpoint.getsockname.assert_not_called();endpoint.fileno.assert_not_called()
+            if scenario!='connect':endpoint.getsockopt.assert_not_called()
+        return report,pair,client,upstream
+
+    def half_close_state_example(self,direction=2):
+        """Geschlossene synthetische Whitelist, keine Identitäten oder Nutzbytes."""
+        return dict(direction=direction,connecting=False,client_eof=direction==2,upstream_eof=direction==1,
+            client_write_closed=False,upstream_write_closed=False,
+            client_buffer_bytes=9 if direction==2 else 0,upstream_buffer_bytes=9 if direction==1 else 0)
+
+    def test_actual_half_close_failure_state_is_pre_shutdown_not_cleanup_both_directions(self):
+        # Testzweck: Neuer echter main→Engine.step→Pair.read→shutdown-Pfad in
+        # beiden Richtungen; Snapshot vor syscall, nicht mutierter Cleanupzustand.
+        for name,direction in [('client',1),('upstream',2)]:
+            with self.subTest(direction=direction):
+                report,pair,client,upstream=self.half_close_child_case(name)
+                self.assertIn('half_close_state',report,'Gebundene Half-close-RAM-Diagnose fehlt')
+                self.assertEqual(self.half_close_state_example(direction),report['half_close_state'])
+                self.assertTrue(pair.connecting);self.assertEqual(set(),pair.read_closed)
+                self.assertEqual(set(pair.sockets),pair.write_closed)
+
+    def test_actual_half_close_last_drain_failure_reports_drained_direction_only(self):
+        # Testzweck: Derselbe echte send-Drain mit beiden EOFs und noch offener
+        # Reversebuffer-Richtung; Länge unmittelbar nach tatsächlichem Partialflow.
+        for name,direction in [('client',1),('upstream',2)]:
+            with self.subTest(direction=direction):
+                report,pair,client,upstream=self.half_close_child_case(name,'drain')
+                self.assertIn('half_close_state',report,'Tatsächlicher Drainzustand fehlt')
+                expected=self.half_close_state_example(direction)|dict(client_eof=True,upstream_eof=True)
+                self.assertEqual(expected,report['half_close_state'])
+                getattr(pair,name).send.assert_called_once_with(b'\x17\x03drain\x00')
+
+    def test_actual_half_close_connect_completion_reports_current_false_without_new_probe(self):
+        # Testzweck: Originaler Writable/SO_ERROR0 erfolgt genau einmal; Diagnose
+        # beobachtet erst den Zustand unmittelbar vor FIN, keine neue getsockopt-Anfrage.
+        report,pair,client,upstream=self.half_close_child_case('upstream','connect')
+        self.assertIn('half_close_state',report,'Completiongebundener Fehlerzustand fehlt')
+        self.assertEqual(self.half_close_state_example(),report['half_close_state'])
+        upstream.getsockopt.assert_called_once_with(self.module().socket.SOL_SOCKET,self.module().socket.SO_ERROR)
+        client.getsockopt.assert_not_called();upstream.send.assert_not_called()
+
+    def test_actual_half_close_unknown_state_is_null_not_zero_or_later_cleanup(self):
+        # Testzweck: Ohne direkt beobachtbaren eigenen Snapshot bleibt die Diagnose
+        # null; tatsächlicher Exit/Stage/Errno/RSS/Close bleiben unverändert fatal/echt.
+        report,pair,client,upstream=self.half_close_child_case(unknown=True)
+        self.assertIn('half_close_state',report,'Explizite Unknown-Diagnose fehlt')
+        self.assertIsNone(report['half_close_state']);self.assertTrue(pair.connecting)
+
+    def test_half_close_state_runner_whitelist_rejects_strings_unknown_fields_and_bad_numbers(self):
+        # Testzweck: Genau feste bool/numeric RAM-Felder, identische alte Fehler-
+        # und Erfolgsgrenzen; kein Payload-/Adress-/FD-/Ausnahmeexport über Zusatzfeld.
+        old=dict(failed=True,stage=14,error=4,errno_category=5,closed=True,
+            close_stage=None,close_error=None,close_errno_category=None,peak_rss_bytes=70000000,cpu_millis=31000)
+        state=self.half_close_state_example();value=old|{'half_close_state':state}
+        try:actual=runner.relay_failure_result(value)
+        except ValueError:self.fail('Geschlossener neuer Half-close-Diagnosevertrag fehlt')
+        self.assertEqual(value,actual);self.assertEqual(old,runner.relay_failure_result(old))
+        self.assertEqual(old|{'half_close_state':None},runner.relay_failure_result(old|{'half_close_state':None}))
+        invalid=[{},state|{'raw':'private'},state|{'fd':7},state|{'direction':True},state|{'direction':0},
+            state|{'direction':3},state|{'connecting':0},state|{'client_eof':'false'},state|{'upstream_eof':1},
+            state|{'client_write_closed':None},state|{'upstream_write_closed':1},
+            state|{'client_buffer_bytes':-1},state|{'client_buffer_bytes':65537},
+            state|{'client_buffer_bytes':None},state|{'upstream_buffer_bytes':True},
+            state|{'client_eof':False},state|{'upstream_write_closed':True},state|{'upstream_buffer_bytes':1},
+            state|{'connecting':True},state|{'upstream_eof':True,'client_buffer_bytes':0},'private']
+        for bad in invalid:
+            with self.subTest(),self.assertRaises(ValueError):runner.relay_failure_result(old|{'half_close_state':bad})
+        left=self.half_close_state_example(1)|{'connecting':True,'upstream_write_closed':True}
+        self.assertEqual(old|{'half_close_state':left},runner.relay_failure_result(old|{'half_close_state':left}))
+        for bad in [value|{'stage':8},value|{'failed':False},value|{'raw':'private'}]:
+            with self.subTest(),self.assertRaises(ValueError):runner.relay_failure_result(bad)
+        with self.assertRaises(ValueError):runner.relay_result(value)
+
+    def test_half_close_state_failure_identity_and_collection_unknown_do_not_reuse_old_snapshot(self):
+        # Testzweck: Nur Identität der wirklich entwichenen shutdown-Ausnahme.
+        # Kein alter erfolgreicher/anders behandelter/selektierter Pairzustand.
+        m=self.module();extract=getattr(m,'half_close_failure_state',None)
+        self.assertTrue(callable(extract),'Identitätsgebundener Fehler-Snapshot fehlt')
+        first=OSError(errno.ENOTCONN,'private-first');other=OSError(errno.ENOTCONN,'private-other')
+        state=self.half_close_state_example()
+        with patch.object(m,'HALF_CLOSE_FAILURE',(first,state)):
+            self.assertEqual(state,extract(first));self.assertIsNone(extract(other))
+        pair=m.Pair(Mock(),Mock(),0);project=getattr(pair,'half_close_state',None)
+        self.assertTrue(callable(project));pair.connecting=None
+        self.assertIsNone(project(pair.upstream),'Unknown wurde durch bool(None) zu false')
+        pair.connecting=False;self.assertIsNone(project(Mock()),'Unbekannte Richtung wurde zu1/2')
+
+    def test_actual_session_nonzero_child_keeps_half_close_state_and_primary_exit(self):
+        # Testzweck: Echter transport_session-Fehlerpfad übernimmt nur nach echtem
+        # Childexit1 denselben geschlossenen Snapshot; originale TERM/5s/Close bleiben.
+        value=dict(failed=True,stage=14,error=4,errno_category=5,closed=True,
+            close_stage=None,close_error=None,close_errno_category=None,peak_rss_bytes=42000000,cpu_millis=47,
+            half_close_state=self.half_close_state_example())
+        with self.rig() as rig:
+            process=Mock();process.poll.side_effect=[None,1,1];process.returncode=1
+            process.communicate.return_value=(json.dumps(value).encode(),b'');process.stdin=Mock();process.stdout=Mock();owned_stdin=process.stdin
+            with patch.object(runner.subprocess,'Popen',return_value=process),patch.object(rig,'relay_target',return_value=ADDRESS),\
+                    patch.object(rig,'relay_ready'),self.assertRaises(runner.ProcessExitError) as raised:
+                with rig.transport_session():pass
+            self.assertEqual(1,raised.exception.exit_code)
+            self.assertEqual(value,rig.report.get('relay_failure'),'Bekannter Fehler mit eigener Diagnose wurde verloren')
+            self.assertEqual([dict(phase='relay_close',error='process_exit',exit_code=1)],rig.report['failures'])
+            process.communicate.assert_called_once_with(timeout=5);owned_stdin.close.assert_called_once();self.assertIsNone(process.stdin)
+            process.stdout.close.assert_called_once();self.assertIsNone(rig.relay_process)
+
+    def test_original_terminal_reader_failure_reports_remain_byte_equal_under_new_contract(self):
+        # Testzweck: Synthetische Fixtures des unveränderten früheren Fehler-
+        # schemas bleiben ohne erfundene Pairflags akzeptiert. Die echten alten
+        # Belege werden separat hashgebunden erhalten, nicht als Testlauf gelesen.
+        for rss,cpu in ((41447424,29),(42315776,47)):
+            value=dict(failed=True,stage=14,error=4,errno_category=5,closed=True,
+                close_stage=None,close_error=None,close_errno_category=None,peak_rss_bytes=rss,cpu_millis=cpu)
+            before=json.dumps(value,sort_keys=True)
+            self.assertEqual(value,runner.relay_failure_result(value));self.assertEqual(before,json.dumps(value,sort_keys=True))
+            self.assertNotIn('half_close_state',value)
+
+    def test_actual_full_run_half_close_state_keeps_auth_exit_and_real_owned_cleanup(self):
+        # Testzweck: Voller Rig.run→Auth→Session→Report→Cleanup-Pfad; echte neue
+        # RAM-Diagnose verdrängt keine primäre Ursache und öffnet keine Erfolgsabnahme.
+        value=dict(failed=True,stage=14,error=4,errno_category=5,closed=True,
+            close_stage=None,close_error=None,close_errno_category=None,peak_rss_bytes=42000000,cpu_millis=47,
+            half_close_state=self.half_close_state_example())
+        attempt=dict(total=16,passed=2,failed=3,skipped=10,interrupted=0,errors=0,success=False,failed_test_indexes=[3,7,12])
+        with test_diagnostics.DiagnosticsTests().synthetic_runtime() as rig:
+            primary=runner.MeasuredProcessExitError(1);rig.relay_target=Mock(return_value=ADDRESS);rig.relay_ready=Mock()
+            child=Mock(pid=2468,returncode=1);child.stdin=Mock();child.stdout=Mock();child.poll.side_effect=[None,1,1]
+            child.communicate.return_value=(json.dumps(value).encode(),None)
+            def measured(args,**kwargs):
+                rig.report['sample_count']=1
+                if args[0]=='node':
+                    (rig.root/'auth-result.json').write_text(json.dumps(attempt));raise primary
+            rig.measured_command=Mock(side_effect=measured)
+            rows=[container(service) for service in runner.BUDGETS];rig.inventory=Mock(side_effect=[[],rows,rows,[]])
+            with patch.object(runner.subprocess,'Popen',return_value=child),patch.object(runner.os,'killpg') as kill:
+                with self.assertRaises(runner.ProcessExitError) as raised:rig.run()
+            self.assertEqual(1,raised.exception.exit_code)
+            actual=json.loads((rig.root/'report/resource-result.json').read_text())
+            self.assertEqual(value,actual.get('relay_failure'),'Voller echter Reportpfad verlor Half-close-Diagnose')
+            self.assertEqual([dict(phase='auth',error='process_exit',exit_code=1),
+                dict(phase='relay_close',error='process_exit',exit_code=1)],actual['failures'])
+            self.assertEqual(attempt,actual['auth_attempt']);self.assertTrue(actual['cleanup_complete'])
+            self.assertFalse(actual['success']);self.assertNotIn('relay',actual)
+            self.assertNotIn('peak_memory_with_relay_upper_bound_bytes',actual);self.assertIsNone(rig.relay_process)
+            child.communicate.assert_called_once_with(timeout=5);kill.assert_not_called()
 
 if __name__=='__main__':unittest.main()
