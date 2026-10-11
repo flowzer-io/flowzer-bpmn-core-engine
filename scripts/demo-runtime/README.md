@@ -708,3 +708,43 @@ historischen Source-/Proof-/Snapshotbindungen bleiben erhalten. Keine Runtime,
 zusätzliche Probe, geänderte Fehlerakzeptanz oder Lockerung von Ressourcen,
 Auth/TLS/Netz/Timeout/Max3/Ownership/Cleanup. Neue Whole-Freeze und eigener
 unabhängiger Gesamtreview bleiben vor Publikation/einem neuen Erstlauf Pflicht.
+
+### Terminales eigenes Socketpaar vor weiterem Half-close (Source-only)
+
+Der folgende isolierte Erstlauf `38096043979/a1` auf
+`77cf0e693589f32a214d272a68089422b3701851` bleibt **FAILURE**. Der geschlossene
+Zahlenbericht belegt Half-close-Stage 14, I/O-Kategorie 4 und ENOTCONN-Kategorie 5,
+echten Relay-Exit 1, anschließend eigenen Relay-Close sowie Docker-Cleanup.
+Tatsächlicher Relay-Peak-RSS 41447424 Bytes und CPU 29 Millisekunden sind beobachtet,
+aber kein erfolgreicher Relay-/Gesamtressourcenvertrag. Discovery 200/Issuer/PKCE
+bleiben belegt; Auth-Exit 1 und die unvollständige Abnahme bleiben unverändert.
+Betroffener Socket und konkrete EOF-/Buffer-/Pending-Connect-Zustände sind im
+Artefakt nicht erfasst. Insbesondere ist Pending Connect keine bestätigte Ursache.
+
+Ein davon getrennt belegter Source-Vertrag wurde minimal korrigiert: Ein eigenes
+Pair ist nur bei **beiden EOFs, beiden leeren Richtungsbuffern und keinem Pending
+Connect** terminal. Dieses Prädikat schützt vor einem weiteren unnötigen Shutdown;
+der bestehende `Engine.drop` schließt dann den eigenen Besitz. Direkte Pair-Reads/
+Writes bleiben zuständig für richtungsbezogenen FIN nach Drain, aber erzeugen
+keinen FIN mehr für ein bereits terminales Paar. Einseitiges EOF bleibt ausdrücklich
+offen für die Gegenrichtung, Pending Connect behält das originale Writable/
+SO_ERROR-Completionverfahren und dieselbe Frist. Kein ENOTCONN wird abgefangen
+oder toleriert; nichtterminal bleibt es fatal. Echte Closefehler, Ownership,
+Stale-Selector-Keys und sämtliche Auth-/TLS-/Netz-/Ressourcen-/Cleanupgrenzen bleiben.
+Diese Reihenfolgekorrektur beweist **nicht**, dass der native Fehler genau diesen
+Pairzustand hatte oder bereits behoben ist.
+
+Sieben genuine Assertion-RED-Beobachtungen in fünf neuen tatsächlichen
+Engine-Mockpfadmethoden (zweites EOF und letzter Drain jeweils in beiden Richtungen,
+Pending-Connect-Terminalgrenze, Stale-/Fremdpaar-Vertrag und echte Closeursache)
+wurden von **117 Python / 21 Mock-Node ohne Skips** abgelöst. Drei weitere additive
+Methoden schützen Pending-Connect-EOF mit leerem/gefülltem Buffer, einseitige
+opaque Gegenrichtung/Partialwrites und weiterhin fatales nichtterminales ENOTCONN
+mit vollständigem eigenen Cleanup. Alle 109 bisherigen Pythonmethoden bleiben
+bytegleich; kein bisheriger direkter Pairtest wurde angepasst oder abgeschwächt.
+Der veröffentlichte Parentstand, seine Quellen/Belege und der tatsächliche terminale
+Handoff sind zusätzlich physisch und hashgebunden archiviert. Kein lokaler
+TCP-/Browser-/Dockerlauf und keine Probe; der bestehende Reader bleibt auf
+173 Git / 4 Ruby-YAML / 1 Node-VM begrenzt. Neue Whole-Freeze und unabhängiger
+explizit gewählter Sol-Codex-Gesamtreview stehen vor jeder späteren Publikation
+oder einem gesondert freigegebenen neuen Hosted-Erstlauf.

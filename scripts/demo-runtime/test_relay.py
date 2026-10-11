@@ -584,4 +584,175 @@ class RelayTests(unittest.TestCase):
                 self.assertIsNone(rig.relay_process)
                 self.assertEqual(1 if code is None else 0,rig.stop_process.call_count)
 
+    def engine_pair(self):
+        """Nur eigene Socket-/Selector-Doubles; der tatsächliche Engine.step bleibt unverändert."""
+        m=self.module();listener=Mock();selector=Mock()
+        engine=m.Engine(listener,ADDRESS,selector,lambda:0)
+        client=Mock();upstream=Mock();pair=m.Pair(client,upstream,0)
+        for sock in pair.sockets:
+            sock.recv.side_effect=AssertionError('Unerwarteter synthetischer Read')
+            sock.send.side_effect=AssertionError('Unerwarteter synthetischer Write')
+        pair.registered=set(pair.sockets);engine.pairs=[pair]
+        return m,engine,pair,selector
+
+    def engine_events(self,m,engine,selector,*events):
+        """Gelieferte Selector-Snapshotkeys, keine eigene Netz-/Probeaktion."""
+        selector.select.return_value=[
+            (type('Key',(),dict(data=pair,fileobj=sock))(),mask)
+            for pair,sock,mask in events]
+        engine.step()
+
+    def test_actual_engine_second_eof_drops_finished_pair_without_shutdown(self):
+        # Testzweck: Zweites wirklich gemocktes recv-EOF in beiden Reihenfolgen
+        # beendet ein leer gedraintes eigenes Paar vor jedem weiteren Shutdown.
+        # Der verbotene Shutdown würde ENOTCONN werfen; das ist kein erlaubter Fehler.
+        for last in ('client','upstream'):
+            with self.subTest(last=last):
+                m,engine,pair,selector=self.engine_pair();sock=getattr(pair,last)
+                pair.read_closed.add(pair.peer(sock));sock.recv.side_effect=None;sock.recv.return_value=b''
+                for endpoint in pair.sockets:endpoint.shutdown.side_effect=OSError(errno.ENOTCONN,'synthetic')
+                try:self.engine_events(m,engine,selector,(pair,sock,m.selectors.EVENT_READ))
+                except OSError:self.fail('Terminales Paar bekam vor Drop einen unnötigen Shutdown')
+                self.assertEqual([],engine.pairs);self.assertEqual(set(pair.sockets),pair.read_closed)
+                for endpoint in pair.sockets:
+                    endpoint.shutdown.assert_not_called();endpoint.close.assert_called_once()
+                self.assertEqual(2,selector.unregister.call_count)
+
+    def test_actual_engine_last_drain_with_both_eofs_drops_without_shutdown(self):
+        # Testzweck: Tatsächlicher letzter send-Drain in beiden Richtungen muss
+        # sämtliche opaque Bytes erhalten und danach Drop statt zusätzlichem FIN wählen.
+        wire=b'\x16\x03\x03\x00\xff\x00final'
+        for destination in ('client','upstream'):
+            with self.subTest(destination=destination):
+                m,engine,pair,selector=self.engine_pair();sock=getattr(pair,destination)
+                pair.read_closed=set(pair.sockets);pair.buffers[sock].extend(wire)
+                sock.send.side_effect=None;sock.send.return_value=len(wire)
+                for endpoint in pair.sockets:endpoint.shutdown.side_effect=OSError(errno.ENOTCONN,'synthetic')
+                try:self.engine_events(m,engine,selector,(pair,sock,m.selectors.EVENT_WRITE))
+                except OSError:self.fail('Letzter terminaler Bufferdrain bekam einen unnötigen Shutdown')
+                sock.send.assert_called_once_with(wire);self.assertFalse(any(pair.buffers.values()))
+                self.assertEqual([],engine.pairs)
+                for endpoint in pair.sockets:
+                    endpoint.shutdown.assert_not_called();endpoint.close.assert_called_once()
+
+    def test_actual_engine_pending_connect_eof_preserves_drain_then_one_fin(self):
+        # Testzweck: Client-EOF während Pending Connect bleibt vorgemerkt, auch
+        # bei leerem Buffer. Erst originales Writable/SO_ERROR0, vollständiger
+        # Partialwrite-Drain und dann genau ein FIN, ohne neue Verbindung/Probe.
+        for wire in (b'',b'\x16\x03\x03\x00\xffpending'):
+            with self.subTest(buffered=bool(wire)):
+                m,engine,pair,selector=self.engine_pair();pair.connecting=True
+                pair.client.recv.side_effect=None;pair.client.recv.return_value=b''
+                pair.buffers[pair.upstream].extend(wire)
+                self.engine_events(m,engine,selector,(pair,pair.client,m.selectors.EVENT_READ))
+                self.assertTrue(pair.connecting);self.assertIn(pair,engine.pairs)
+                pair.upstream.shutdown.assert_not_called();pair.upstream.send.assert_not_called()
+                pair.upstream.getsockopt.return_value=0
+                if wire:pair.upstream.send.side_effect=[3,len(wire)-3]
+                self.engine_events(m,engine,selector,(pair,pair.upstream,m.selectors.EVENT_WRITE))
+                self.assertFalse(pair.connecting)
+                if wire:
+                    pair.upstream.shutdown.assert_not_called()
+                    self.assertEqual(wire[3:],bytes(pair.buffers[pair.upstream]))
+                    self.engine_events(m,engine,selector,(pair,pair.upstream,m.selectors.EVENT_WRITE))
+                    self.assertEqual([wire,wire[3:]],[call.args[0] for call in pair.upstream.send.call_args_list])
+                pair.upstream.shutdown.assert_called_once_with(m.socket.SHUT_WR)
+                self.engine_events(m,engine,selector,(pair,pair.upstream,m.selectors.EVENT_WRITE))
+                pair.upstream.shutdown.assert_called_once();pair.client.shutdown.assert_not_called()
+                pair.upstream.getsockopt.assert_called_once_with(m.socket.SOL_SOCKET,m.socket.SO_ERROR)
+                self.assertIn(pair,engine.pairs);engine.close()
+
+    def test_actual_engine_pending_connect_excludes_terminal_classification(self):
+        # Testzweck: Explizite synthetische Vertragsgrenze, keine Behauptung über
+        # einen nativen Zustand: Selbst beide EOF-Marker/leer sind mit Pending
+        # Connect nicht terminal. Erst echte gemockte Completion darf Drop wählen.
+        m,engine,pair,selector=self.engine_pair();pair.connecting=True;pair.read_closed=set(pair.sockets)
+        self.engine_events(m,engine,selector,(pair,pair.client,m.selectors.EVENT_WRITE))
+        self.assertIn(pair,engine.pairs,'Pending Connect wurde unzulässig als terminal geschlossen')
+        pair.upstream.getsockopt.assert_not_called()
+        for sock in pair.sockets:sock.shutdown.assert_not_called();sock.close.assert_not_called()
+        pair.upstream.getsockopt.return_value=0
+        for sock in pair.sockets:sock.shutdown.side_effect=OSError(errno.ENOTCONN,'synthetic')
+        self.engine_events(m,engine,selector,(pair,pair.upstream,m.selectors.EVENT_WRITE))
+        self.assertEqual([],engine.pairs)
+        for sock in pair.sockets:sock.shutdown.assert_not_called();sock.close.assert_called_once()
+
+    def test_actual_engine_single_eof_keeps_reverse_opaque_partial_writes(self):
+        # Testzweck: Einseitiges EOF ist ausdrücklich nicht terminal. Anfrage-
+        # und Antwortbytes/Nullbytes bleiben in beiden Partialwrite-Richtungen
+        # identisch, die offene Gegenrichtung wird nicht geschlossen oder verloren.
+        m,engine,pair,selector=self.engine_pair()
+        request=b'\x16\x03\x03\x00\xffrequest';response=b'\x17\x03\x03\x00\x00response'
+        pair.client.recv.side_effect=[request,b'']
+        self.engine_events(m,engine,selector,(pair,pair.client,m.selectors.EVENT_READ))
+        self.engine_events(m,engine,selector,(pair,pair.client,m.selectors.EVENT_READ))
+        pair.upstream.shutdown.assert_not_called();pair.upstream.send.side_effect=[3,len(request)-3]
+        self.engine_events(m,engine,selector,(pair,pair.upstream,m.selectors.EVENT_WRITE))
+        pair.upstream.shutdown.assert_not_called()
+        self.engine_events(m,engine,selector,(pair,pair.upstream,m.selectors.EVENT_WRITE))
+        pair.upstream.shutdown.assert_called_once_with(m.socket.SHUT_WR)
+        pair.upstream.recv.side_effect=None;pair.upstream.recv.return_value=response
+        self.engine_events(m,engine,selector,(pair,pair.upstream,m.selectors.EVENT_READ))
+        pair.client.send.side_effect=[2,len(response)-2]
+        self.engine_events(m,engine,selector,(pair,pair.client,m.selectors.EVENT_WRITE))
+        self.engine_events(m,engine,selector,(pair,pair.client,m.selectors.EVENT_WRITE))
+        self.assertEqual([request,request[3:]],[call.args[0] for call in pair.upstream.send.call_args_list])
+        self.assertEqual([response,response[2:]],[call.args[0] for call in pair.client.send.call_args_list])
+        self.assertEqual({pair.client},pair.read_closed);self.assertIn(pair,engine.pairs)
+        pair.client.shutdown.assert_not_called();pair.client.close.assert_not_called();engine.close()
+
+    def test_actual_engine_nonterminal_enotconn_still_fatal_and_all_owned_cleanup_attempted(self):
+        # Testzweck: Keine pauschale ENOTCONN-Toleranz. Erstes EOF mit noch offener
+        # Gegenrichtung bleibt echter Half-close-Fehler; sämtliche eigenen Paare,
+        # Listener/Selector werden danach geschlossen, fremde Ziele entstehen nicht.
+        m,engine,pair,selector=self.engine_pair();other=m.Pair(Mock(),Mock(),0)
+        engine.pairs.append(other);pair.client.recv.side_effect=None;pair.client.recv.return_value=b''
+        failure=OSError(errno.ENOTCONN,'synthetic');pair.upstream.shutdown.side_effect=failure
+        with self.assertRaises(OSError) as raised:
+            self.engine_events(m,engine,selector,(pair,pair.client,m.selectors.EVENT_READ))
+        self.assertIs(failure,raised.exception);self.assertEqual(14,m.CURRENT_STAGE)
+        self.assertEqual((4,5),m.error_numbers(raised.exception));self.assertIn(pair,engine.pairs)
+        other.client.recv.assert_not_called();other.upstream.send.assert_not_called()
+        engine.close();self.assertEqual([],engine.pairs)
+        for own in (pair,other):
+            for sock in own.sockets:sock.close.assert_called_once()
+        engine.listener.close.assert_called_once();selector.close.assert_called_once()
+
+    def test_actual_engine_terminal_drop_skips_stale_keys_and_preserves_other_pair(self):
+        # Testzweck: Natürlicher zweiter EOF beendet genau das eigene Paar.
+        # Weitere gelieferte Snapshotkeys besitzen kein I/O-Recht; das andere
+        # Paar bleibt bedienbar, erneuter Drop und späteres Cleanup sind idempotent.
+        m,engine,pair,selector=self.engine_pair();other=m.Pair(Mock(),Mock(),0);engine.pairs.append(other)
+        pair.read_closed.add(pair.client);pair.upstream.recv.side_effect=None;pair.upstream.recv.return_value=b''
+        for sock in pair.sockets:sock.shutdown.side_effect=OSError(errno.ENOTCONN,'synthetic')
+        wire=b'\x16\x00other';other.client.recv.return_value=wire
+        try:self.engine_events(m,engine,selector,
+            (pair,pair.upstream,m.selectors.EVENT_READ),(pair,pair.client,m.selectors.EVENT_WRITE),
+            (pair,pair.upstream,m.selectors.EVENT_READ),(other,other.client,m.selectors.EVENT_READ))
+        except OSError:self.fail('Terminaler Shutdown verhinderte eigene Drop-/Stale-/Fremdpaar-Verträge')
+        self.assertEqual([other],engine.pairs);self.assertEqual(wire,bytes(other.buffers[other.upstream]))
+        pair.upstream.recv.assert_called_once();pair.client.send.assert_not_called();engine.drop(pair)
+        for sock in pair.sockets:sock.shutdown.assert_not_called();sock.close.assert_called_once()
+        for sock in other.sockets:sock.close.assert_not_called()
+        engine.close()
+        for own in (pair,other):
+            for sock in own.sockets:sock.close.assert_called_once()
+
+    def test_actual_engine_terminal_close_error_remains_real_cause_and_attempts_all_cleanup(self):
+        # Testzweck: Terminal-vor-FIN darf keine Fehlerakzeptanz lockern. Echter
+        # eigener Closefehler bleibt die Ursache, beide Socket-Closes sowie
+        # übrige Paare/Listener/Selector werden trotzdem vollständig versucht.
+        m,engine,pair,selector=self.engine_pair();other=m.Pair(Mock(),Mock(),0);engine.pairs.append(other)
+        pair.read_closed.add(pair.client);pair.upstream.recv.side_effect=None;pair.upstream.recv.return_value=b''
+        failure=OSError(errno.EIO,'synthetic-close');pair.client.close.side_effect=failure
+        pair.client.shutdown.side_effect=OSError(errno.ENOTCONN,'synthetic-shutdown')
+        with self.assertRaises(OSError) as raised:
+            self.engine_events(m,engine,selector,(pair,pair.upstream,m.selectors.EVENT_READ))
+        self.assertIs(failure,raised.exception,'Unnötiger Shutdown verdeckte echte eigene Closeursache')
+        self.assertEqual(16,m.CURRENT_STAGE);self.assertNotIn(pair,engine.pairs)
+        for sock in pair.sockets:sock.shutdown.assert_not_called();sock.close.assert_called_once()
+        self.assertEqual(2,selector.unregister.call_count);engine.close()
+        for sock in other.sockets:sock.close.assert_called_once()
+        engine.listener.close.assert_called_once();selector.close.assert_called_once()
+
 if __name__=='__main__':unittest.main()

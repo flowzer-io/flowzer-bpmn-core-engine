@@ -113,8 +113,16 @@ class Pair:
     def can_read(self,sock):
         return sock not in self.read_closed and len(self.buffers[self.peer(sock)])<BUFFER_BYTES
 
+    def finished(self):
+        """Beide EOFs und vollständig geleerte Richtungen sind erst ohne Pending Connect terminal."""
+        return (not self.connecting and all(sock in self.read_closed for sock in self.sockets)
+            and not any(self.buffers.values()))
+
     def half_close(self,sock):
         """Erst nach Drain der zugehörigen Richtung FIN weiterreichen, nie Bytes verwerfen."""
+        # Ein bereits vollständig beendetes Paar braucht keinen weiteren FIN.
+        # Engine.drop schließt danach den eigenen Besitz; ENOTCONN bleibt sonst fatal.
+        if self.finished():return
         if (self.peer(sock) in self.read_closed and not self.buffers[sock]
                 and sock not in self.write_closed and not (sock is self.upstream and self.connecting)):
             mark(14);sock.shutdown(socket.SHUT_WR);self.write_closed.add(sock)
@@ -226,7 +234,7 @@ class Engine:
                     pair.connecting=False;pair.half_close(sock)
                 if mask&selectors.EVENT_READ:pair.read(sock,self.clock())
                 if mask&selectors.EVENT_WRITE:pair.write(sock,self.clock())
-                if len(pair.read_closed)==2 and not any(pair.buffers.values()):self.drop(pair)
+                if pair.finished():self.drop(pair)
                 else:self.refresh(pair)
             except (ConnectionResetError,BrokenPipeError):
                 # Browser darf einen bereits legitimen HTTP/TLS-Stream abbrechen.
