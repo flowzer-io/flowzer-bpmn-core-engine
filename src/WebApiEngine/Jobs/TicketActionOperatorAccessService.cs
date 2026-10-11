@@ -75,11 +75,15 @@ public sealed class TicketActionOperatorAccessService(ITransactionalStorageProvi
         try { instance = await storage.InstanceStorage.GetProcessInstance(instanceId); }
         catch (FileNotFoundException) { return (null, TicketActionOperatorAccessStatus.NotFound); }
         var masters = instance.Tokens.Where(token => token.ParentTokenId is null).Take(2).ToArray();
+        // Der persistierte äußere Vorgang wird weiterhin an die angefragte ID gebunden.
+        // Der getrennt erzeugte interne Scope ist nur gültig, wenn alle gespeicherten
+        // Token dem einen nichtleeren Master-Scope angehören; kein fremder Scope wird geraten.
         if (instance.InstanceId != instanceId || instance.IsFinished
             || instance.State is not (ProcessInstanceState.Running or ProcessInstanceState.Waiting)
             || instance.DefinitionId == Guid.Empty || string.IsNullOrWhiteSpace(instance.metaDefinitionId)
             || instance.metaDefinitionId.Length > 256 || instance.metaDefinitionId.Any(char.IsControl)
-            || masters.Length != 1 || masters[0].Id == Guid.Empty || masters[0].ProcessInstanceId != instanceId
+            || masters.Length != 1 || masters[0].Id == Guid.Empty || masters[0].ProcessInstanceId == Guid.Empty
+            || instance.Tokens.Any(token => token.ProcessInstanceId != masters[0].ProcessInstanceId)
             || masters[0].Initiator is not { } initiator || initiator.Issuer != issuer
             || !KeycloakDirectoryOptions.IsSafeProviderId(initiator.Subject))
             return (null, TicketActionOperatorAccessStatus.InvalidContext);
@@ -87,12 +91,12 @@ public sealed class TicketActionOperatorAccessService(ITransactionalStorageProvi
         // Nicht die mutable Storage-/Tokenreferenz behalten: ein In-place-Wechsel
         // von Version/Initiator während Provider-I/O muss den Proof entwerten.
         return (new(instance.InstanceId, instance.metaDefinitionId, instance.DefinitionId,
-            instance.ProcessId, instance.State, masters[0].Id, initiator), TicketActionOperatorAccessStatus.Ok);
+            instance.ProcessId, instance.State, masters[0].Id, masters[0].ProcessInstanceId, initiator), TicketActionOperatorAccessStatus.Ok);
     }
 
     private static TicketActionOperatorAccessOutcome Failed(TicketActionOperatorAccessStatus status) => new(status, null);
     private sealed record InstanceContext(Guid InstanceId, string MetaDefinitionId, Guid DefinitionId,
-        string ProcessId, ProcessInstanceState State, Guid MasterTokenId, AuthenticatedSubject Initiator);
+        string ProcessId, ProcessInstanceState State, Guid MasterTokenId, Guid InternalScopeId, AuthenticatedSubject Initiator);
 }
 
 /// <summary>Technische Unklarheit, Entzug und Kontextkonflikt sind getrennt; nur Ok enthält einen aktuellen Stand.</summary>

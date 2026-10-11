@@ -3,6 +3,9 @@ using Model;
 using WebApiEngine.Auth;
 using WebApiEngine.IdentityDirectory;
 using WebApiEngine.Jobs;
+using Microsoft.AspNetCore.Mvc;
+using WebApiEngine.Controller;
+using WebApiEngine.Shared;
 
 namespace WebApiEngine.Tests;
 
@@ -14,6 +17,43 @@ public sealed partial class ServiceTaskInitiatorAccessTest
     {
         c.Authentication.JwtBearer.Roles.Operator = "operator";
         return new(c.Provider, c.Reader, c.Authentication, c.Time, c.TicketActions);
+    }
+
+    // Testzweck: Auch der persönliche Operatorbeleg muss die wirkliche ProcessEngine-ID-Trennung
+    // unterstützen und die äußere Speicherinstanz binden; ein regulärer Start darf nicht 409 liefern.
+    // Die Controllerantwort prüft keine zweite Anmeldung und ersetzt keinen HTTP-Policy-Test.
+    [Test]
+    public async Task OperatorProof_RealEngineInstance_ShouldBindSeparateInternalScope()
+    {
+        var c = new Context(useEngineInstance: true); var actor = OperatorActor();
+        c.Instance.Tokens.Single(token => token.ParentTokenId is null).ProcessInstanceId
+            .Should().NotBeEmpty().And.NotBe(c.Instance.InstanceId);
+        var controller = new TicketActionOperatorAccessController(OperatorService(c), new FixedActor(actor));
+        var result = await controller.Check(c.Instance.InstanceId, CancellationToken.None);
+        var response = result.Result.Should().BeAssignableTo<ObjectResult>().Subject;
+        response.StatusCode.Should().Be(200);
+        var proof = response.Value.Should().BeOfType<ApiStatusResult<TicketActionOperatorAccessDto>>().Subject.Result!;
+        proof.ProcessInstanceId.Should().Be(c.Instance.InstanceId);
+        proof.InitiatorSubject.Should().Be("m1"); proof.ActorSubject.Should().Be("operator-person");
+        c.Reader.Requests.Should().HaveCount(2); c.Provider.Commits.Should().Be(0);
+    }
+
+    // Testzweck: Persönliche Operatorbelege dürfen echte Message-/Signal-Starts nicht
+    // wegen falsch erzeugter interner Token-Scopes mit 409 verwerfen; alle Rechtechecks bleiben aktiv.
+    [TestCase("message")]
+    [TestCase("signal")]
+    public async Task OperatorProof_RealEventEngine_ShouldKeepCanonicalScope(string startKind)
+    {
+        var c = new Context(useEngineInstance: true, startKind: startKind); var actor = OperatorActor();
+        var controller = new TicketActionOperatorAccessController(OperatorService(c), new FixedActor(actor));
+        var result = await controller.Check(c.Instance.InstanceId, CancellationToken.None);
+        var response = result.Result.Should().BeAssignableTo<ObjectResult>().Subject;
+        response.StatusCode.Should().Be(200);
+        AssertCanonicalScope(c);
+        var proof = response.Value.Should().BeOfType<ApiStatusResult<TicketActionOperatorAccessDto>>().Subject.Result!;
+        proof.ProcessInstanceId.Should().Be(c.Instance.InstanceId);
+        proof.InitiatorSubject.Should().Be("m1"); proof.ActorSubject.Should().Be("operator-person");
+        c.Reader.Requests.Should().HaveCount(2); c.Provider.OpenContexts.Should().Be(0); c.Provider.Commits.Should().Be(0);
     }
 
     // Testzweck: Die spätere Storage-Bindungsprüfung darf den tatsächlichen Live-Rollenzeitpunkt nicht künstlich verjüngen.
@@ -107,6 +147,10 @@ public sealed partial class ServiceTaskInitiatorAccessTest
     [TestCase("terminating", TicketActionOperatorAccessStatus.InvalidContext)]
     [TestCase("missing-initiator", TicketActionOperatorAccessStatus.InvalidContext)]
     [TestCase("duplicate-master", TicketActionOperatorAccessStatus.InvalidContext)]
+    [TestCase("empty-master-id", TicketActionOperatorAccessStatus.InvalidContext)]
+    [TestCase("empty-internal-scope", TicketActionOperatorAccessStatus.InvalidContext)]
+    [TestCase("wrong-token-scope", TicketActionOperatorAccessStatus.InvalidContext)]
+    [TestCase("mixed-internal-scopes", TicketActionOperatorAccessStatus.InvalidContext)]
     [TestCase("wrong-issuer", TicketActionOperatorAccessStatus.InvalidContext)]
     public async Task OperatorProof_ShouldRejectInvalidInstanceBeforeProviderIo(string change, TicketActionOperatorAccessStatus status)
     {
@@ -123,6 +167,7 @@ public sealed partial class ServiceTaskInitiatorAccessTest
     [TestCase("wrong-definition")]
     [TestCase("changed-subject")]
     [TestCase("duplicate-master")]
+    [TestCase("changed-internal-scope")]
     public async Task OperatorProof_ShouldRevalidateImmutableInstanceAfterIo(string change)
     {
         var c = new Context(); var service = OperatorService(c);

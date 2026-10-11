@@ -71,12 +71,16 @@ public sealed class ServiceTaskInitiatorAccessService(ITransactionalStorageProvi
         catch (FileNotFoundException) { return (null, ServiceTaskInitiatorAccessStatus.InvalidContext); }
         var masters = instance.Tokens.Where(token => token.ParentTokenId is null).Take(2).ToArray();
         var waitingTokens = instance.Tokens.Where(token => token.Id == job.TokenId).Take(2).ToArray();
+        // Die äußere Ablage-ID und der interne Engine-Prozessscope werden unabhängig
+        // erzeugt. Mitgliedschaft folgt dem eindeutigen Master, nicht GUID-Gleichheit
+        // mit dem Ablageschlüssel; gemischte oder leere Scopes bleiben geschlossen.
         if (instance.InstanceId != job.ProcessInstanceId || instance.IsFinished
             || instance.State is not (ProcessInstanceState.Running or ProcessInstanceState.Waiting)
             || instance.DefinitionId != job.DefinitionId || instance.metaDefinitionId != job.MetaDefinitionId || instance.ProcessId != job.ProcessId
-            || masters.Length != 1 || masters[0].ProcessInstanceId != instance.InstanceId
+            || masters.Length != 1 || masters[0].Id == Guid.Empty || masters[0].ProcessInstanceId == Guid.Empty
+            || instance.Tokens.Any(token => token.ProcessInstanceId != masters[0].ProcessInstanceId)
             || masters[0].Initiator is not { } identity || identity.Issuer != issuer || string.IsNullOrWhiteSpace(identity.Subject)
-            || waitingTokens.Length != 1 || waitingTokens[0].ProcessInstanceId != instance.InstanceId
+            || waitingTokens.Length != 1 || waitingTokens[0].ProcessInstanceId != masters[0].ProcessInstanceId
             || waitingTokens[0].CurrentBaseElement is not BPMN.Activities.ServiceTask
             || waitingTokens[0].CurrentBaseElement.Id != job.FlowNodeId || waitingTokens[0].State != FlowNodeState.Active)
             return (null, ServiceTaskInitiatorAccessStatus.InvalidContext);
@@ -86,12 +90,13 @@ public sealed class ServiceTaskInitiatorAccessService(ITransactionalStorageProvi
         // Immutable Kopie: Memory-/Dateiadapter können dieselbe mutable Job-/Instanzreferenz
         // erneut liefern. Ein In-place-Umbinden darf den Vorherstand nicht mit verändern.
         return (new(job.Id, job.ProcessInstanceId, job.MetaDefinitionId, job.DefinitionId, job.TokenId,
-            job.FlowNodeId, job.Type, job.ProcessId, identity), ServiceTaskInitiatorAccessStatus.Ok);
+            job.FlowNodeId, job.Type, job.ProcessId, masters[0].Id, masters[0].ProcessInstanceId, identity), ServiceTaskInitiatorAccessStatus.Ok);
     }
 
     private static ServiceTaskInitiatorAccessOutcome Failed(ServiceTaskInitiatorAccessStatus status) => new(status, null);
     private sealed record ExecutionContext(Guid JobId, Guid InstanceId, string MetaDefinitionId,
-        Guid DefinitionId, Guid TokenId, string FlowNodeId, string Type, string ProcessId, AuthenticatedSubject Identity);
+        Guid DefinitionId, Guid TokenId, string FlowNodeId, string Type, string ProcessId,
+        Guid MasterTokenId, Guid InternalScopeId, AuthenticatedSubject Identity);
 }
 
 /// <summary>Closed-world Ergebnis; technische Unklarheit wird nicht zu bestätigtem Entzug.</summary>
