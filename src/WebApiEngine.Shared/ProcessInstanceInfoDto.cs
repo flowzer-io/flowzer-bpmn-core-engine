@@ -21,6 +21,9 @@ public class ProcessInstanceInfoDto
     
     public ProcessInstanceStateDto State { get; set; }
 
+    /// <summary>Reviewtes fachliches Ergebnis der gebundenen Version, unabhängig vom technischen State.</summary>
+    public ProcessInstanceOutcomeDto Outcome { get; set; } = ProcessInstanceOutcomeDto.Unknown;
+
     /// <summary>Persönlich zurückgezogen, nicht nur durch den Betrieb oder BPMN beendet; ohne Akteursdaten.</summary>
     public bool WasWithdrawn { get; set; }
     public List<TokenDto> Tokens { get; set; } = [];

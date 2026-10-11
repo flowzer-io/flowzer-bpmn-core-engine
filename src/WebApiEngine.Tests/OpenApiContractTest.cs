@@ -17,6 +17,24 @@ public class OpenApiContractTest
 {
     private const string SnapshotPath = "docs/openapi.json";
 
+    // Testzweck: Das additive Outcome am bestehenden Instanz-DTO ist ein Stringenum mit exakt drei sicheren Werten;
+    // technische State-Werte und Tokens werden nicht in einen Entscheidungsvertrag umgedeutet.
+    [Test]
+    public async Task InstanceOutcome_ShouldExposeTheAdditiveThreeValueStringContract()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var schemas = document.RootElement.GetProperty("components").GetProperty("schemas");
+        var properties = schemas.GetProperty("ProcessInstanceInfoDto").GetProperty("properties");
+        properties.GetProperty("outcome").GetProperty("$ref").GetString()
+            .Should().Be("#/components/schemas/ProcessInstanceOutcomeDto");
+        var outcome = schemas.GetProperty("ProcessInstanceOutcomeDto");
+        outcome.GetProperty("type").GetString().Should().Be("string");
+        outcome.GetProperty("enum").EnumerateArray().Select(item => item.GetString())
+            .Should().BeEquivalentTo("Unknown", "Approved", "Rejected");
+        properties.GetProperty("state").GetProperty("$ref").GetString()
+            .Should().Be("#/components/schemas/ProcessInstanceStateDto");
+    }
+
     // Testzweck: Generierte TT-Workerclients müssen den Body und sämtliche verbindlichen
     // Job-/Identitäts-/Entscheidungskoordinaten verlangen, nicht bool/Guid-Defaults erfinden.
     [Test]

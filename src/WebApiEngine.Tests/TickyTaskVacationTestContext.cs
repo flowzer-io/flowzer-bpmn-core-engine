@@ -20,8 +20,18 @@ internal sealed class TickyTaskVacationTestContext : IDisposable
     internal static readonly Guid SubstituteSubject = Guid.Parse("31000000-0000-4000-8000-000000000002");
     internal static readonly Guid PersonnelSubject = Guid.Parse("31000000-0000-4000-8000-000000000003");
     internal static readonly Guid OtherPersonnelSubject = Guid.Parse("31000000-0000-4000-8000-000000000004");
-    private readonly AuthenticatedWorkflowTestContext _context = new();
+    private readonly AuthenticatedWorkflowTestContext _context;
+    private readonly Guid _definitionId;
+
+    /// <summary>Optional feste, synthetische Versionskennung und Konfiguration vor dem ersten Hoststart.</summary>
+    internal TickyTaskVacationTestContext(IReadOnlyDictionary<string, string>? settings = null, Guid? definitionId = null,
+        Action<IServiceCollection>? configureServices = null)
+    {
+        _context = new AuthenticatedWorkflowTestContext(settings, configureServices: configureServices);
+        _definitionId = definitionId ?? Guid.NewGuid();
+    }
     internal Storage Storage => _context.Storage;
+    internal IServiceProvider Services => _context.Services;
     internal Guid InitiatorId { get; private set; }
     internal Guid SupervisorId { get; private set; }
     internal Guid SubstituteId { get; private set; }
@@ -29,7 +39,7 @@ internal sealed class TickyTaskVacationTestContext : IDisposable
     internal Guid DefinitionId { get; private set; }
     internal Guid InstanceId { get; private set; }
 
-    internal HttpClient Client(Guid? subject = null) => _context.CreateClient(userId: subject,
+    internal HttpClient Client(Guid? subject = null, bool isOperator = false) => _context.CreateClient(userId: subject, isOperator: isOperator,
         authorizedClientId: "synthetic-tickytask-demo");
 
     internal async Task InitializeAsync()
@@ -49,7 +59,7 @@ internal sealed class TickyTaskVacationTestContext : IDisposable
             AuthenticatedWorkflowTestContext.UserId);
         var definition = new BpmnDefinition
         {
-            Id = Guid.NewGuid(), DefinitionId = DefinitionKey, Hash = "synthetic-example",
+            Id = _definitionId, DefinitionId = DefinitionKey, Hash = "synthetic-example",
             SavedByUser = AuthenticatedWorkflowTestContext.UserId, SavedOn = DateTime.UtcNow,
             Version = new Model.Version(1, 0), IsActive = false
         };
