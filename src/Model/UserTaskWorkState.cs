@@ -31,6 +31,8 @@ public sealed class UserTaskAssignmentEvent
     public required string Action { get; init; }
     public required string ActorOwnerKey { get; init; }
     public required Guid ActorUserId { get; init; }
+    /// <summary>Verifizierte Person und Vermittler; null für historische/technische Ereignisse.</summary>
+    public AuthenticatedActor? AuthenticatedActor { get; init; }
     public string? ActorDisplayName { get; init; }
     public Guid? PreviousDirectoryAssigneeUserId { get; init; }
     public Guid? NextDirectoryAssigneeUserId { get; init; }

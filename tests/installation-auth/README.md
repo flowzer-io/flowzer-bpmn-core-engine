@@ -74,6 +74,20 @@ offensichtliche Testwerte und gehören in keine echte Installation.
 
 Die Playwright-Projekte erzwingen die Reihenfolge `check-config` → Abläufe → Neustart.
 Specs, die Keycloak verändern, stellen den Ausgangszustand vorher und nachher wieder her.
+Die anonyme Readiness-/Migrationsprobe ist ausdrücklich vom Keycloak-Admin-Fixture
+getrennt: Ein fehlgeschlagener Auth-Baseline-Aufbau darf den Health-Aufruf nicht verhindern.
+
+Die hermetische Spec-Regression läuft ohne Compose, Browser, Netzwerk oder Zugangsdaten:
+
+```bash
+npm --prefix tests/installation-auth run test:source
+```
+
+Sie führt den echten Readiness-Testkörper mit isolierten I/O-Abhängigkeiten aus,
+prüft dessen Unabhängigkeit und erhält alle bestehenden Health-/Migrationsassertionen.
+Das ist ein Source-Test, keine Keycloak-/HTTPS-Abnahme und kein Beleg für die Ursache
+eines fehlgeschlagenen Hosted-Laufs. Nach Änderungen gelten nur Belege des neuen SHA;
+ältere Runtime-Belege werden dadurch weder grün noch auf den neuen Stand übertragen.
 
 ## Grenzen
 

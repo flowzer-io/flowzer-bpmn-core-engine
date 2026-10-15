@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { FlowzerApiError, FlowzerClient } from './index.js';
+import { FlowzerApiError, FlowzerClient, type CompleteUserTaskCommand } from './index.js';
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -10,6 +10,34 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 describe('FlowzerClient', () => {
+  // Testzweck: Persönlicher Rückzug überträgt ausschließlich die Instanzkennung;
+  // Akteur und Berechtigung stammen aus der tatsächlichen Serverauthentisierung.
+  it('zieht eine eigene Instanz ohne Identitätsparameter zurück', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true, result: { instanceId: 'instance/id', wasWithdrawn: true, tokens: [] },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+    const signal = new AbortController().signal;
+    await expect(client.instances.withdraw('instance/id', { signal })).resolves.toMatchObject({ wasWithdrawn: true });
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(url).toBe('/api/instance/instance%2Fid/withdraw');
+    expect(init?.method).toBe('POST');
+    expect(init?.body).toBeUndefined();
+    expect(init?.signal).toBe(signal);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  // Testzweck: Ein fachlich abgeschlossener Vorgang bleibt ein sichtbarer Konflikt;
+  // der SDK wiederholt die Mutation nicht automatisch und verschleiert keinen Fehler.
+  it('liefert einen Rückzugskonflikt ohne automatische Wiederholung', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      status: 409, title: 'Withdrawal not available', detail: 'Der Vorgang ist bereits abgeschlossen.',
+    }, 409));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+    await expect(client.instances.withdraw('finished')).rejects.toMatchObject({ status: 409 });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   // Testzweck: Ein externer Host kann Aufgaben mit einem kurzlebig gelieferten
   // Bearer-Token laden, ohne dass der SDK globalen Auth-Zustand speichert.
   it('lädt Aufgaben über einen hostseitigen Bearer-Callback', async () => {
@@ -88,6 +116,22 @@ describe('FlowzerClient', () => {
     const [, init] = fetch.mock.calls[0]!;
     expect(new Headers(init?.headers).get('Idempotency-Key')).toBe('host-command-42');
     expect(JSON.parse(String(init?.body))).toMatchObject({ actionId: 'approve', data: { comment: 'ok' } });
+  });
+
+  // Testzweck: Ein Host bindet die angezeigte Subscription und Version und verlangt
+  // persönliche Zuweisung; der SDK überträgt genau diese Bedingungen ohne Token-/Akteurparameter.
+  it('übermittelt den atomar gebundenen Hostabschluss unverändert', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({ successful: true }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+    const command: CompleteUserTaskCommand = {
+      flowNodeId: 'review', tokenId: 'token', processInstanceId: 'instance', expectedTaskRevision: 1,
+      expectedUserTaskId: 'task', expectedDefinitionId: 'definition-version', requireAssignedToCurrentUser: true,
+      data: { answer: 'yes' },
+    };
+    await client.userTasks.complete(command, { idempotencyKey: 'original-bound-attempt' });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(fetch.mock.calls[0]![1]?.body))).toEqual(command);
+    expect(new Headers(fetch.mock.calls[0]![1]?.headers).get('Idempotency-Key')).toBe('original-bound-attempt');
   });
 
   // Testzweck: Private Entwürfe verwenden im SDK denselben revisionsgebundenen

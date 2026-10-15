@@ -17,6 +17,33 @@ public class InstanceController(
     RuntimeDiagramService runtimeDiagramService) : FlowzerControllerBase
 {
     private const string MissingInstance = "The process instance was not found.";
+
+    /// <summary>Persönlicher initiatorgebundener Rückzug, ausdrücklich keine Betriebs-Abbruchberechtigung.</summary>
+    [HttpPost("{instanceId:guid}/withdraw")]
+    [ProducesResponseType<ApiStatusResult<ProcessInstanceInfoDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<ProcessInstanceInfoDto>>> WithdrawInstance(Guid instanceId)
+    {
+        var (user, _) = await instanceAccess.GetPermissionsAsync();
+        try
+        {
+            var withdrawn = await bpmnBusinessLogic.WithdrawInstance(instanceId, user);
+            return Ok(new ApiStatusResult<ProcessInstanceInfoDto>(
+                await withdrawn.ToDtoAsync(storageSystem.DefinitionStorage, canInspect: false)));
+        }
+        catch (FileNotFoundException)
+        {
+            return Problem(statusCode: StatusCodes.Status404NotFound,
+                title: "Process instance not found", detail: MissingInstance);
+        }
+        catch (InstanceFinishedConflictException)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict,
+                title: "The process instance is already finished",
+                detail: "Der Vorgang ist bereits beendet und kann nicht mehr zurückgezogen werden.");
+        }
+    }
     /// <summary>
     /// Bricht eine laufende Instanz ab. Beendete Instanzen antworten mit 409, unbekannte mit 404.
     /// </summary>

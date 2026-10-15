@@ -11,6 +11,12 @@ public interface IStorageSystem
     /// </summary>
     IDefinitionStorage DefinitionStorage { get; }
 
+    /// <summary>Persönliche, kurzlebige Read-only-Formulareinstiege.</summary>
+    IFormEmbedGrantStorage FormEmbedGrantStorage => UnsupportedFormEmbedGrantStorage.Instance;
+
+    /// <summary>Persönliche Startformular-Einstiege ohne Aufgabe/Instanz.</summary>
+    IStartFormEmbedGrantStorage StartFormEmbedGrantStorage => UnsupportedStartFormEmbedGrantStorage.Instance;
+
     /// <summary>Ordner des Workflow-Katalogs samt der Zuweisungen, die an ihnen haengen.</summary>
     IFolderStorage FolderStorage { get; }
 

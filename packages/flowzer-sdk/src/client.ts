@@ -209,6 +209,16 @@ export class FlowzerClient {
     get: (instanceId: string, options: FlowzerCallOptions = {}): Promise<ProcessInstance> =>
       this.transport.statusResult(`/instance/${segment(instanceId)}`, options),
 
+    /**
+     * Zieht ausschließlich den eigenen laufenden Start zurück. Die API prüft die
+     * stabile Initiatoridentität und bestätigt Wiederholungen ohne erneuten Auditfakt.
+     * Bereits ausgeführte Außenwirkungen werden nicht rückgängig gemacht.
+     */
+    withdraw: (instanceId: string, options: FlowzerCallOptions = {}): Promise<ProcessInstance> =>
+      this.transport.statusResult(`/instance/${segment(instanceId)}/withdraw`, {
+        method: 'POST', signal: options.signal,
+      }),
+
     /** Lädt die serverseitig berechtigte, datensparsame Prozesshistorie. */
     history: (instanceId: string, options: FlowzerCallOptions = {}): Promise<ProcessHistory> =>
       this.transport.statusResult(`/instance/${segment(instanceId)}/history`, options),

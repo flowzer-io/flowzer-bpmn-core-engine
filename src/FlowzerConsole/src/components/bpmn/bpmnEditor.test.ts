@@ -848,3 +848,54 @@ describe('listFormOwners', () => {
     expect(createModelerDouble([startShape, labelShape]).listFormOwners()).toHaveLength(1);
   });
 });
+
+// Testzweck: Dynamische Quellen sind exklusiv, bleiben bei Teiländerungen erhalten
+// und werden bei einem bewussten Wechsel zu festen IDs/Freitext vollständig entfernt.
+describe('dynamische Directory-Zuweisung', () => {
+  it.each(['initiator', 'variable:vertretung'])('ersetzt feste Zuweisungen durch %s', source => {
+    const { businessObject, editor } = diagram({ $type: 'bpmn:UserTask', extensionElements: {
+      $type: 'bpmn:ExtensionElements', values: [
+        { $type: 'zeebe:AssignmentDefinition', assignee: 'legacy' },
+        { $type: 'flowzer:TaskAssignment', mode: 'directory', assigneeId: 'old', candidateUserIds: 'other', candidateGroupIds: 'group' },
+      ],
+    }});
+    editor.setDirectoryAssignment('Element_1', { assigneeSource: source });
+    expect(extensionOf(businessObject, 'flowzer:TaskAssignment')).toMatchObject({ mode: 'directory', assigneeSource: source });
+    expect(extensionOf(businessObject, 'flowzer:TaskAssignment')?.assigneeId).toBeUndefined();
+    expect(extensionOf(businessObject, 'flowzer:TaskAssignment')?.candidateUserIds).toBeUndefined();
+    expect(extensionOf(businessObject, 'flowzer:TaskAssignment')?.candidateGroupIds).toBeUndefined();
+    expect(extensionOf(businessObject, 'zeebe:AssignmentDefinition')).toBeUndefined();
+  });
+
+  it('behält die Quelle ohne neue Auswahl und bei einer Terminänderung', () => {
+    const { businessObject, editor } = diagram({ $type: 'bpmn:UserTask', extensionElements: {
+      $type: 'bpmn:ExtensionElements', values: [{ $type: 'flowzer:TaskAssignment', mode: 'directory', assigneeSource: 'initiator' }],
+    }});
+    editor.setDirectoryAssignment('Element_1', {});
+    editor.setSchedule('Element_1', { dueDate: 'P1D' });
+    expect(extensionOf(businessObject, 'flowzer:TaskAssignment')?.assigneeSource).toBe('initiator');
+    editor.setAssignmentMode('Element_1', 'text');
+    expect(extensionOf(businessObject, 'flowzer:TaskAssignment')?.assigneeSource).toBeUndefined();
+  });
+
+  it('entfernt die dynamische Quelle bei einer festen Auswahl', () => {
+    const { businessObject, editor } = diagram({ $type: 'bpmn:UserTask', extensionElements: {
+      $type: 'bpmn:ExtensionElements', values: [{ $type: 'flowzer:TaskAssignment', mode: 'directory', assigneeSource: 'initiator' }],
+    }});
+    editor.setDirectoryAssignment('Element_1', { assigneeId: 'new' });
+    expect(extensionOf(businessObject, 'flowzer:TaskAssignment')?.assigneeSource).toBeUndefined();
+    expect(extensionOf(businessObject, 'flowzer:TaskAssignment')?.assigneeId).toBe('new');
+  });
+});
+
+// Testzweck: Ein nicht deploybarer importierter Quellenwert darf keine gültige aktuelle
+// Zuweisung überschreiben; insbesondere ist ein finaler Zeilenumbruch kein Stringende.
+describe('ungültige Directory-Quelle', () => {
+  it.each(['variable:vertretung\n', 'variable:vertretung\u2028'])('schreibt %s nicht zurück', source => {
+    const { businessObject, editor } = diagram({ $type: 'bpmn:UserTask', extensionElements: {
+      $type: 'bpmn:ExtensionElements', values: [{ $type: 'flowzer:TaskAssignment', mode: 'directory', assigneeSource: 'initiator' }],
+    }});
+    editor.setDirectoryAssignment('Element_1', { assigneeSource: source });
+    expect(extensionOf(businessObject, 'flowzer:TaskAssignment')?.assigneeSource).toBe('initiator');
+  });
+});

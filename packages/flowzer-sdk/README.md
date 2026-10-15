@@ -102,6 +102,16 @@ begrenztes Bearer-Token.
   Vertrag enthält Schemas, Außenwirkung und Hash, aber weder Handlerdetails, Zieladressen
   noch Secret-Referenzen.
 
+## Persönliches Zurückziehen
+
+`client.instances.withdraw(instanceId)` zieht nur den laufenden eigenen Start zurück.
+Der Server bindet den Rückzug an den gespeicherten Issuer und Subject des Initiators;
+Benutzernamen, UUID-Parameter oder Betriebsrecht ersetzen diese Identität nicht. Ein
+wiederholter eigener Rückzug bestätigt denselben Zustand. Fremde oder unbekannte
+Instanzen liefern identisch 404, ein bereits fachlich abgeschlossener Vorgang 409.
+`wasWithdrawn` enthält ausschließlich den sicheren Status, nicht die interne
+Auditidentität. Bereits ausgeführte Außenwirkungen werden nicht zurückgerollt.
+
 ## Kompatibilität
 
 `@flowzer/sdk` folgt Semantic Versioning. Vor `1.0.0` können auch kleinere Versionen

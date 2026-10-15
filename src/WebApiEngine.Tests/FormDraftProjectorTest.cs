@@ -7,6 +7,17 @@ namespace WebApiEngine.Tests;
 
 public sealed class FormDraftProjectorTest
 {
+    // Testzweck: Der PostgreSQL-Renntest muss einen gültigen nichtleeren Entwurf senden;
+    // ein leeres Standardformular würde vor jedem möglichen Write mit 422 abbrechen.
+    [Test]
+    public void BoundMigrationFixture_ShouldAcceptItsActualDraftPayload()
+    {
+        var contract = FormContractCompiler.Compile(MultiProcessWorkflows.BoundDraftForm);
+        var projected = FormDraftProjector.Project(contract, Data("{\"answer\":\"V1-Zwischenstand\"}"));
+        using var document = JsonDocument.Parse(projected);
+        document.RootElement.GetProperty("answer").GetString().Should().Be("V1-Zwischenstand");
+    }
+
     // Testzweck: Ein unvollstaendiger Draft darf sichere Zeilenwerte behalten, aber
     // weder unbekannte Zeilenfelder noch falsche Objektformen unter einer deklarierten
     // Wiederholgruppe persistieren.

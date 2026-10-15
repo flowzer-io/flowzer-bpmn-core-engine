@@ -1,0 +1,76 @@
+{
+  "display": "form",
+  "flowzer": {
+    "contractVersion": 2,
+    "rules": [
+      {
+        "kind": "dateOrder",
+        "start": "von",
+        "end": "bis",
+        "allowEqual": true
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "datetime",
+      "key": "von",
+      "label": "Erster Urlaubstag",
+      "input": true,
+      "enableTime": false,
+      "format": "dd.MM.yyyy",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "type": "datetime",
+      "key": "bis",
+      "label": "Letzter Urlaubstag",
+      "input": true,
+      "enableTime": false,
+      "format": "dd.MM.yyyy",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "type": "number",
+      "key": "arbeitstage",
+      "label": "Beantragte Arbeitstage",
+      "input": true,
+      "description": "Ohne Wochenenden und Feiertage; keine echte Urlaubsbuchung.",
+      "validate": {
+        "required": true,
+        "min": 1
+      }
+    },
+    {
+      "type": "flowzerSubject",
+      "key": "vertretung",
+      "label": "Vertretung",
+      "input": true,
+      "multiple": false,
+      "validate": {
+        "required": true
+      },
+      "flowzer": {
+        "subjectSelection": {
+          "allowUsers": true,
+          "allowGroups": false,
+          "allowedUserIds": [],
+          "userMemberOfGroupIds": [],
+          "allowedGroupIds": [],
+          "includeSubgroups": false
+        }
+      }
+    },
+    {
+      "type": "textarea",
+      "key": "bemerkung",
+      "label": "Bemerkung",
+      "input": true,
+      "rows": 3
+    }
+  ]
+}

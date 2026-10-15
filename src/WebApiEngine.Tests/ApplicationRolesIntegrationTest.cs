@@ -21,7 +21,7 @@ namespace WebApiEngine.Tests;
 /// Betrieb einsehen darf, ist eine andere Frage als wer Flowzer ueberhaupt benutzen darf.
 /// </summary>
 [NonParallelizable]
-public class ApplicationRolesIntegrationTest
+public partial class ApplicationRolesIntegrationTest
 {
     private const string Issuer = "https://issuer.test/realms/flowzer";
     private const string Audience = "flowzer-api";

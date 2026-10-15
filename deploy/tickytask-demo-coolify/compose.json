@@ -1,0 +1,181 @@
+{
+  "x-scope": "Separate Cool3-Demo, Sourcekandidat: kein Install-/Runtime-Go, keine bestehenden Staging-/Productionressourcen. Nur verwaltetes Coolify-Compose mit Console-Domain, kein Raw-Modus.",
+  "services": {
+    "postgres": {
+      "image": "docker.io/library/postgres:17@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3",
+      "restart": "unless-stopped",
+      "mem_limit": "512m",
+      "cpus": 0.5,
+      "environment": {
+        "FLOWZER_DEMO_POSTGRES_ADMIN_PASSWORD": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "FLOWZER_DEMO_MIGRATION_CONNECTION_STRING": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "FLOWZER_DEMO_RUNTIME_CONNECTION_STRING": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "FLOWZER_DEMO_BFF_CLIENT_SECRET": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "FLOWZER_DEMO_DIRECTORY_CLIENT_SECRET": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "POSTGRES_DB": "postgres",
+        "POSTGRES_USER": "postgres",
+        "POSTGRES_PASSWORD": "${FLOWZER_DEMO_POSTGRES_ADMIN_PASSWORD:?FLOWZER_DEMO_POSTGRES_ADMIN_PASSWORD muss im freigegebenen Runtimekontext gesetzt sein}",
+        "TZ": "Europe/Berlin"
+      },
+      "volumes": [
+        "postgres_data:/var/lib/postgresql/data"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "pg_isready -U postgres -d postgres"
+        ],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 12
+      }
+    },
+    "migrate": {
+      "image": "ghcr.io/flowzer-io/flowzer-api@sha256:9994c7e309fab08f649b21cba44b13249c1eb28d474bcb4a73aa0a7a56552273",
+      "init": true,
+      "restart": "no",
+      "profiles": [
+        "operations"
+      ],
+      "mem_limit": "1024m",
+      "cpus": 1.0,
+      "command": [
+        "--migrate"
+      ],
+      "depends_on": {
+        "postgres": {
+          "condition": "service_healthy"
+        }
+      },
+      "environment": {
+        "FLOWZER_DEMO_POSTGRES_ADMIN_PASSWORD": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "FLOWZER_DEMO_MIGRATION_CONNECTION_STRING": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "FLOWZER_DEMO_RUNTIME_CONNECTION_STRING": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "FLOWZER_DEMO_BFF_CLIENT_SECRET": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "FLOWZER_DEMO_DIRECTORY_CLIENT_SECRET": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "ASPNETCORE_ENVIRONMENT": "Production",
+        "Storage__Provider": "PostgreSql",
+        "Storage__PostgreSql__Schema": "flowzer",
+        "Storage__PostgreSql__ConnectionString": "${FLOWZER_DEMO_MIGRATION_CONNECTION_STRING:?FLOWZER_DEMO_MIGRATION_CONNECTION_STRING muss im freigegebenen Runtimekontext gesetzt sein}",
+        "Storage__PostgreSql__MigrationConnectionString": "${FLOWZER_DEMO_MIGRATION_CONNECTION_STRING:?FLOWZER_DEMO_MIGRATION_CONNECTION_STRING muss im freigegebenen Runtimekontext gesetzt sein}",
+        "TZ": "Europe/Berlin"
+      }
+    },
+    "api": {
+      "image": "ghcr.io/flowzer-io/flowzer-api@sha256:9994c7e309fab08f649b21cba44b13249c1eb28d474bcb4a73aa0a7a56552273",
+      "init": true,
+      "restart": "unless-stopped",
+      "mem_limit": "768m",
+      "cpus": 1.0,
+      "depends_on": {
+        "postgres": {
+          "condition": "service_healthy"
+        }
+      },
+      "expose": [
+        "8080"
+      ],
+      "environment": {
+        "FLOWZER_DEMO_POSTGRES_ADMIN_PASSWORD": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "FLOWZER_DEMO_MIGRATION_CONNECTION_STRING": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "FLOWZER_DEMO_RUNTIME_CONNECTION_STRING": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "FLOWZER_DEMO_BFF_CLIENT_SECRET": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "FLOWZER_DEMO_DIRECTORY_CLIENT_SECRET": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "ASPNETCORE_ENVIRONMENT": "Production",
+        "ASPNETCORE_FORWARDEDHEADERS_ENABLED": "true",
+        "TZ": "Europe/Berlin",
+        "Storage__Provider": "PostgreSql",
+        "Storage__PostgreSql__ConnectionString": "${FLOWZER_DEMO_RUNTIME_CONNECTION_STRING:?FLOWZER_DEMO_RUNTIME_CONNECTION_STRING muss im freigegebenen Runtimekontext gesetzt sein}",
+        "Storage__PostgreSql__Schema": "flowzer",
+        "Authentication__Scheme": "Bff",
+        "Authentication__JwtBearer__Authority": "${FLOWZER_DEMO_AUTHORITY:?FLOWZER_DEMO_AUTHORITY muss im freigegebenen Runtimekontext gesetzt sein}",
+        "Authentication__JwtBearer__Audience": "${FLOWZER_DEMO_API_AUDIENCE:?FLOWZER_DEMO_API_AUDIENCE muss im freigegebenen Runtimekontext gesetzt sein}",
+        "Authentication__JwtBearer__RequireHttpsMetadata": "true",
+        "Authentication__JwtBearer__RequiredRole": "flowzer-access",
+        "Authentication__JwtBearer__Roles__Modeler": "flowzer-modeler",
+        "Authentication__JwtBearer__Roles__Operator": "flowzer-operator",
+        "Authentication__JwtBearer__Roles__Worker": "flowzer-worker",
+        "Authentication__JwtBearer__LegacyPermissiveRoles": "false",
+        "Authentication__Bff__ClientId": "${FLOWZER_DEMO_BFF_CLIENT_ID:?FLOWZER_DEMO_BFF_CLIENT_ID muss im freigegebenen Runtimekontext gesetzt sein}",
+        "Authentication__Bff__ClientSecret": "${FLOWZER_DEMO_BFF_CLIENT_SECRET:?FLOWZER_DEMO_BFF_CLIENT_SECRET muss im freigegebenen Runtimekontext gesetzt sein}",
+        "Authentication__Bff__Scopes__0": "openid",
+        "Authentication__Bff__Scopes__1": "profile",
+        "Authentication__Bff__DataProtectionKeysPath": "/var/lib/flowzer/data-protection",
+        "IdentityDirectory__Enabled": "true",
+        "IdentityDirectory__ServerUrl": "${FLOWZER_DEMO_KEYCLOAK_SERVER_URL:?FLOWZER_DEMO_KEYCLOAK_SERVER_URL muss im freigegebenen Runtimekontext gesetzt sein}",
+        "IdentityDirectory__Issuer": "${FLOWZER_DEMO_AUTHORITY:?FLOWZER_DEMO_AUTHORITY muss im freigegebenen Runtimekontext gesetzt sein}",
+        "IdentityDirectory__Realm": "TickyTask",
+        "IdentityDirectory__ClientId": "${FLOWZER_DEMO_DIRECTORY_CLIENT_ID:?FLOWZER_DEMO_DIRECTORY_CLIENT_ID muss im freigegebenen Runtimekontext gesetzt sein}",
+        "IdentityDirectory__ClientSecret": "${FLOWZER_DEMO_DIRECTORY_CLIENT_SECRET:?FLOWZER_DEMO_DIRECTORY_CLIENT_SECRET muss im freigegebenen Runtimekontext gesetzt sein}",
+        "IdentityDirectory__RootGroupId": "${FLOWZER_DEMO_ROOT_GROUP_ID:?FLOWZER_DEMO_ROOT_GROUP_ID muss im freigegebenen Runtimekontext gesetzt sein}",
+        "FormEmbedding__Enabled": "true",
+        "FormEmbedding__PublicOrigin": "https://flowzer.tickytask.de",
+        "FormEmbedding__AllowedHostOrigins__0": "https://demo.tickytask.de",
+        "ForwardedHeaders__KnownNetworks__0": "${FLOWZER_DEMO_TRUSTED_PROXY_CIDR:?FLOWZER_DEMO_TRUSTED_PROXY_CIDR muss vor API-Start an das neue eigene Resource-Netz gebunden sein}",
+        "ForwardedHeaders__ForwardLimit": "2",
+        "Ai__AllowCloudProviders": "false",
+        "Ai__AllowLocalEndpoints": "false",
+        "AiExecution__Enabled": "false",
+        "Connectors__Http__Enabled": "false",
+        "Connectors__Email__Enabled": "false",
+        "ServiceTaskWebhooks__Enabled": "false",
+        "InboundTriggers__SecretKey": "",
+        "TickyTaskTicketActions__ApiClientId": "",
+        "Observability__Prometheus__Enabled": "false"
+      },
+      "volumes": [
+        "keyring:/var/lib/flowzer/data-protection"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:8080/health/ready >/dev/null 2>&1 || exit 1"
+        ],
+        "interval": "15s",
+        "timeout": "5s",
+        "retries": 12,
+        "start_period": "30s"
+      }
+    },
+    "console": {
+      "image": "ghcr.io/flowzer-io/flowzer-console@sha256:fa5f1b80adcc8088108d6f0d639d66106fa8f2b4b4651d1ae2e069b838f7618a",
+      "restart": "unless-stopped",
+      "mem_limit": "128m",
+      "cpus": 0.25,
+      "depends_on": {
+        "api": {
+          "condition": "service_healthy"
+        }
+      },
+      "expose": [
+        "8080"
+      ],
+      "environment": {
+        "FLOWZER_DEMO_POSTGRES_ADMIN_PASSWORD": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "FLOWZER_DEMO_MIGRATION_CONNECTION_STRING": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "FLOWZER_DEMO_RUNTIME_CONNECTION_STRING": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "FLOWZER_DEMO_BFF_CLIENT_SECRET": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "FLOWZER_DEMO_DIRECTORY_CLIENT_SECRET": "__FLOWZER_NOT_FOR_THIS_SERVICE__",
+        "FLOWZER_API_UPSTREAM": "api:8080",
+        "FLOWZER_API_BASE_URL": "/",
+        "FLOWZER_BFF_ENABLED": "true",
+        "FLOWZER_EMBED_API_ORIGIN": "https://flowzer.tickytask.de",
+        "FLOWZER_EMBED_HOST_ORIGINS": "https://demo.tickytask.de"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:8080/health/ready >/dev/null 2>&1 || exit 1"
+        ],
+        "interval": "15s",
+        "timeout": "5s",
+        "retries": 12,
+        "start_period": "30s"
+      }
+    }
+  },
+  "volumes": {
+    "postgres_data": {},
+    "keyring": {}
+  }
+}

@@ -55,12 +55,26 @@ public class Token
     /// </summary>
     public Guid? CompletedByUserId { get; set; }
 
+    /// <summary>Interner verifizierter Akteur des Human-Task-Abschlusses, nicht Teil gewöhnlicher Token-DTOs.</summary>
+    public AuthenticatedActor? CompletedByActor { get; set; }
+
     /// <summary>
     /// Nur am Master-Token: verifizierter Initiator des direkten Starts. Bleibt mit dem
     /// Tokenbestand bei jedem Speichern/Neuladen erhalten, ohne Variablen umzudeuten.
     /// Null für historische und technische Starts. Nicht Teil gewöhnlicher Token-DTOs.
     /// </summary>
     public AuthenticatedSubject? Initiator { get; set; }
+
+    /// <summary>
+    /// Nur am Master: optionale, nicht autorisierende externe Herkunftsreferenz
+    /// des direkten Starts. Nicht Teil der Formularvariablen oder gewöhnlichen DTOs.
+    /// Null bei historischem Bestand und Starts ohne ausdrücklich mitgegebenen Bezug.
+    /// </summary>
+    [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+    public string? ExternalReference { get; set; }
+
+    /// <summary>Nur am Master: auditierter persönlicher Rückzug; null bei Altbestand/Betriebsabbruch.</summary>
+    public ProcessWithdrawal? Withdrawal { get; set; }
 
     public Guid? ParentTokenId { get; init; }
 

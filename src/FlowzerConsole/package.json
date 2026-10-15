@@ -6,7 +6,7 @@
   "description": "Flowzer Console — React/TypeScript UI für die Flowzer BPMN Engine (API-first)",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && vite build --config vite.embed.config.ts",
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
@@ -41,6 +41,8 @@
     "cmdk": "^1.0.4",
     "date-fns": "^4.1.0",
     "dmn-js": "^17.10.2",
+    "flatpickr-formio": "4.6.13-formio.3",
+    "moment-timezone": "0.5.48",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "sonner": "^2.0.1",

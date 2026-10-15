@@ -85,7 +85,9 @@ public partial class InstanceEngine
                 OutputData = data,
                 State = FlowNodeState.Completing,
                 ParentTokenId = MasterToken.Id,
-                ProcessInstanceId = MasterToken.Id,
+                // Elternlink und Prozessscope sind getrennte GUIDs. Auch ein Message-Start
+                // muss denselben internen Scope wie der Master und seine Folgetokens behalten.
+                ProcessInstanceId = MasterToken.ProcessInstanceId,
             });
             Run();
             return;

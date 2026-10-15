@@ -105,13 +105,29 @@ internal static class StableUserTaskScenarios
                 .Single(token => token.CurrentFlowNode?.Id == "First").State.Should().Be(FlowNodeState.Active);
     }
 
-    internal static async Task DirectoryProgressAsync(ITransactionalStorageProvider provider)
+    internal static async Task DirectoryProgressAsync(ITransactionalStorageProvider provider, bool dynamicAssignment = false)
     {
-        var (userId, groupId) = await PublishDirectoryAsync(provider);
-        var (engine, instance) = await StartAsync(provider, directoryAssignment: (userId, groupId));
+        var (userId, groupId, otherUserId) = await PublishDirectoryAsync(provider);
+        var (engine, instance) = await StartAsync(provider, directoryAssignment: (userId, groupId), dynamicAssignment: dynamicAssignment);
         var initial = await TasksAsync(provider, instance.InstanceId);
         var right = initial.Single(task => task.Token.CurrentFlowNode!.Id == "Right");
         var first = initial.Single(task => task.Token.CurrentFlowNode!.Id == "First");
+
+        if (dynamicAssignment)
+        {
+            // Eine neue gültige Auswahl gilt erst für nachfolgende Aufgaben. Die noch
+            // offene parallele Aufgabe darf nicht ihren Bearbeiter wechseln.
+            var changed = await engine.ModifyInstance(instance.InstanceId,
+                new core_engine.InstanceModificationRequest(VariablesToSet: new Dictionary<string, object?>
+                {
+                    ["selectedUser"] = WebApiEngine.Forms.DirectorySubjectValue.Normalize(new SubjectRef(DirectorySubjectKind.User, otherUserId))
+                }), Guid.NewGuid());
+            changed.Modified.Should().BeTrue();
+            using var check = provider.GetTransactionalStorage();
+            var stored = await check.InstanceStorage.GetProcessInstance(instance.InstanceId);
+            var selected = ((IDictionary<string, object?>)stored.Tokens.Single(token => token.ParentTokenId is null).Variables!)["selectedUser"];
+            WebApiEngine.Forms.DirectorySubjectValue.TryParse(selected, out _).Should().BeTrue($"stored reference type is {selected?.GetType().Name}");
+        }
 
         // Neue Engine und neue Storage-Session erzwingen den dauerhaften Roundtrip.
         engine = new BpmnBusinessLogic(provider);
@@ -122,7 +138,13 @@ internal static class StableUserTaskScenarios
         kept.Id.Should().Be(right.Id);
         kept.AssignmentMode.Should().Be(UserTaskAssignmentMode.Directory);
         kept.DirectoryAssigneeUserId.Should().Be(userId);
-        kept.DirectoryCandidateGroupIds.Should().Equal(groupId);
+        kept.DirectoryCandidateGroupIds.Should().Equal(dynamicAssignment ? [] : [groupId]);
+        if (dynamicAssignment)
+        {
+            ((UserTask)kept.Token.CurrentFlowNode!).FlowzerDirectoryAssigneeSource.Should().Be("variable:selectedUser");
+            (await TasksAsync(provider, instance.InstanceId)).Single(task => task.Token.CurrentFlowNode!.Id == "Second")
+                .DirectoryAssigneeUserId.Should().Be(otherUserId);
+        }
         kept.Assignee.Should().BeNull();
         kept.CandidateUsers.Should().BeEmpty();
         kept.CandidateGroups.Should().BeEmpty();
@@ -147,7 +169,7 @@ internal static class StableUserTaskScenarios
     private static async Task<(BpmnBusinessLogic Engine, ProcessInstanceInfo Instance)> StartAsync(
         ITransactionalStorageProvider provider,
         bool timer = false,
-        (Guid UserId, Guid GroupId)? directoryAssignment = null)
+        (Guid UserId, Guid GroupId)? directoryAssignment = null, bool dynamicAssignment = false)
     {
         var definition = new BpmnDefinition
         {
@@ -158,20 +180,26 @@ internal static class StableUserTaskScenarios
         {
             await storage.DefinitionStorage.StoreMetaDefinition(new BpmnMetaDefinition { DefinitionId = definition.DefinitionId, Name = "Stable tasks" });
             await storage.DefinitionStorage.StoreDefinition(definition);
-            await storage.DefinitionStorage.StoreBinary(definition.Id, Xml(timer, directoryAssignment));
+            await storage.DefinitionStorage.StoreBinary(definition.Id, Xml(timer, directoryAssignment, dynamicAssignment));
             await FormTestSeed.StoreAsync(storage, "Approval");
             storage.CommitChanges();
         }
         var engine = new BpmnBusinessLogic(provider);
         await engine.DeployDefinition(definition);
-        return (engine, await engine.StartProcessInstance(definition.DefinitionId));
+        ExpandoObject? variables = null;
+        if (dynamicAssignment && directoryAssignment is { } directory)
+        {
+            variables = new ExpandoObject();
+            ((IDictionary<string, object?>)variables)["selectedUser"] = WebApiEngine.Forms.DirectorySubjectValue.Normalize(new SubjectRef(DirectorySubjectKind.User, directory.UserId));
+        }
+        return (engine, await engine.StartProcessInstance(definition.DefinitionId, variables));
     }
 
-    private static string Xml(bool timer, (Guid UserId, Guid GroupId)? directoryAssignment = null)
+    private static string Xml(bool timer, (Guid UserId, Guid GroupId)? directoryAssignment = null, bool dynamicAssignment = false)
     {
         var first = timer ? """
             <bpmn:intermediateCatchEvent id="First"><bpmn:timerEventDefinition><bpmn:timeDuration>PT1S</bpmn:timeDuration></bpmn:timerEventDefinition></bpmn:intermediateCatchEvent>
-            """ : TaskXml("First", directoryAssignment);
+            """ : TaskXml("First", directoryAssignment, dynamicAssignment);
         return $$"""
             <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
               xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
@@ -181,8 +209,8 @@ internal static class StableUserTaskScenarios
                 <bpmn:startEvent id="Start" />
                 <bpmn:parallelGateway id="Fork" />
                 {{first}}
-                {{TaskXml("Second", directoryAssignment)}}
-                {{TaskXml("Right", directoryAssignment)}}
+                {{TaskXml("Second", directoryAssignment, dynamicAssignment)}}
+                {{TaskXml("Right", directoryAssignment, dynamicAssignment)}}
                 <bpmn:parallelGateway id="Join" />
                 <bpmn:endEvent id="End" />
                 <bpmn:sequenceFlow id="F0" sourceRef="Start" targetRef="Fork" />
@@ -197,16 +225,18 @@ internal static class StableUserTaskScenarios
             """;
     }
 
-    private static string TaskXml(string id, (Guid UserId, Guid GroupId)? directoryAssignment = null) => $$"""
+    private static string TaskXml(string id, (Guid UserId, Guid GroupId)? directoryAssignment = null, bool dynamicAssignment = false) => $$"""
         <bpmn:userTask id="{{id}}" name="{{id}}"><bpmn:extensionElements>
           <zeebe:formDefinition formKey="Approval" />
-          {{(directoryAssignment is { } directory
+          {{(dynamicAssignment
+              ? "<flowzer:taskAssignment mode=\"directory\" assigneeSource=\"variable:selectedUser\" />"
+              : directoryAssignment is { } directory
               ? $"<flowzer:taskAssignment mode=\"directory\" assigneeId=\"{directory.UserId}\" candidateGroupIds=\"{directory.GroupId}\" />"
               : "<zeebe:assignmentDefinition assignee=\"model-text\" candidateUsers=\"text-user\" candidateGroups=\"/team/original\" />")}}
         </bpmn:extensionElements></bpmn:userTask>
         """;
 
-    private static async Task<(Guid UserId, Guid GroupId)> PublishDirectoryAsync(
+    private static async Task<(Guid UserId, Guid GroupId, Guid OtherUserId)> PublishDirectoryAsync(
         ITransactionalStorageProvider provider)
     {
         const string issuer = "https://issuer.test/realms/stable";
@@ -221,6 +251,11 @@ internal static class StableUserTaskScenarios
                 {
                     Id = importedUserId, SourceKind = DirectorySourceKind.Keycloak, Issuer = issuer,
                     Subject = "stable-user", DisplayName = "Stable User", IsActive = true
+                },
+                new DirectoryUser
+                {
+                    Id = Guid.NewGuid(), SourceKind = DirectorySourceKind.Keycloak, Issuer = issuer,
+                    Subject = "other-stable-user", DisplayName = "Other Stable User", IsActive = true
                 }
             ],
             Groups =
@@ -246,7 +281,8 @@ internal static class StableUserTaskScenarios
         {
             var published = (await storage.IdentityDirectoryStorage.GetActiveSnapshot())!;
             return (published.Users.Single(user => user.Subject == "stable-user").Id,
-                published.Groups.Single(group => group.ExternalId == "stable-group").Id);
+                published.Groups.Single(group => group.ExternalId == "stable-group").Id,
+                published.Users.Single(user => user.Subject == "other-stable-user").Id);
         }
     }
 }

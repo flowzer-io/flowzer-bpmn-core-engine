@@ -5,6 +5,7 @@
   "scripts": {
     "install:browsers": "playwright install --with-deps chromium",
     "test": "playwright test",
+    "test:source": "node --test source-tests/*.test.cjs",
     "acceptance": "./run.sh"
   },
   "devDependencies": {

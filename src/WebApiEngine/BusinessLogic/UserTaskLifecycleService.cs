@@ -18,11 +18,11 @@ public sealed class UserTaskLifecycleService(
     IAuthorizationService authorization,
     TimeProvider timeProvider)
 {
-    public Task<UserTaskWorkStateDto?> ClaimAsync(Guid taskId, long expectedRevision) =>
-        MutateAsync(taskId, expectedRevision, "claim", reason: "Aufgabe übernommen", target: null);
+    public Task<UserTaskWorkStateDto?> ClaimAsync(Guid taskId, long expectedRevision, UserTaskAccessCondition? condition = null) =>
+        MutateAsync(taskId, expectedRevision, "claim", reason: "Aufgabe übernommen", target: null, condition);
 
-    public Task<UserTaskWorkStateDto?> ReleaseAsync(Guid taskId, long expectedRevision, string reason) =>
-        MutateAsync(taskId, expectedRevision, "release", reason, target: null);
+    public Task<UserTaskWorkStateDto?> ReleaseAsync(Guid taskId, long expectedRevision, string reason, UserTaskAccessCondition? condition = null) =>
+        MutateAsync(taskId, expectedRevision, "release", reason, target: null, condition);
 
     public Task<UserTaskWorkStateDto?> AssignAsync(
         Guid taskId, long expectedRevision, SubjectRefDto target, string reason) =>
@@ -37,7 +37,8 @@ public sealed class UserTaskLifecycleService(
         long expectedRevision,
         string action,
         string? reason,
-        SubjectRefDto? target)
+        SubjectRefDto? target,
+        UserTaskAccessCondition? condition = null)
     {
         ValidateExpectedRevision(expectedRevision);
         var currentUser = currentUserAccessor.GetCurrentUser();
@@ -72,7 +73,8 @@ public sealed class UserTaskLifecycleService(
                 // den revisionsgebundenen Konflikt statt eines irreführenden 404.
                 throw new UserTaskLifecycleConflictException(expectedRevision, access.State.Revision);
             }
-            if (!CanPerform(action, access, canOperate)) return null;
+            if (!CanPerform(action, access, canOperate) || condition is not null && !condition.Allows(access)) return null;
+            condition?.EnsureBinding(task);
 
             var normalizedReason = action == "claim" ? "Aufgabe übernommen" : ValidateReason(reason);
             if (action is "assign" or "delegate") target = ValidateTarget(target!);
@@ -108,6 +110,7 @@ public sealed class UserTaskLifecycleService(
                 Action = action,
                 ActorOwnerKey = UserTaskDraftOwnerKey.Create(currentUser),
                 ActorUserId = currentUser.UserId,
+                AuthenticatedActor = currentUser.ToAuthenticatedActor(),
                 ActorDisplayName = DisplayName(currentUser),
                 PreviousDirectoryAssigneeUserId = access.State?.DirectoryAssigneeUserId,
                 NextDirectoryAssigneeUserId = next.DirectoryAssigneeUserId,

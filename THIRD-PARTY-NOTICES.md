@@ -15,7 +15,7 @@ Drittanbieter-Code und daher ausgenommen.
 
 Ein ⚠️ markiert Pakete, deren Lizenz manuell geprüft werden sollte (nicht ohne
 Weiteres als unproblematisch für eine MPL-2.0-Nutzung eingestuft, unklar oder nicht
-automatisch ermittelbar). Aktuell 6 von 77
+automatisch ermittelbar). Aktuell 6 von 80
 Einträgen.
 
 ## .NET (NuGet)
@@ -51,6 +51,7 @@ den nuspec-Metadaten des lokalen NuGet-Cache.
 | OpenTelemetry.Extensions.Hosting | 1.18.0 | Apache-2.0 | `src/WebApiEngine/WebApiEngine.csproj` |
 | OpenTelemetry.Instrumentation.AspNetCore | 1.18.0 | Apache-2.0 | `src/WebApiEngine/WebApiEngine.csproj` |
 | Swashbuckle.AspNetCore | 10.2.3 | MIT | `src/WebApiEngine/WebApiEngine.csproj` |
+| System.Security.Cryptography.Pkcs | 10.0.13 | MIT | `src/WebApiEngine/WebApiEngine.csproj` |
 | Testcontainers.PostgreSql | 4.14.0 | MIT | `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj` |
 
 ## JavaScript/TypeScript (npm)
@@ -96,9 +97,11 @@ Lizenz aus dem jeweils installierten `node_modules/<paket>/package.json`.
 | eslint | 9.39.5 | MIT | `src/FlowzerConsole` |
 | eslint-plugin-react-hooks | 5.2.0 | MIT | `src/FlowzerConsole` |
 | eslint-plugin-react-refresh | 0.4.26 | MIT | `src/FlowzerConsole` |
+| flatpickr-formio | 4.6.13-formio.3 | MIT | `src/FlowzerConsole` |
 | globals | 16.5.0 | MIT | `src/FlowzerConsole` |
 | jsdom | 26.1.0 | MIT | `src/FlowzerConsole` |
 | jsdom | 27.4.0 | MIT | `packages/flowzer-react` |
+| moment-timezone | 0.5.48 | MIT | `src/FlowzerConsole` |
 | openapi-typescript | 7.13.0 | MIT | `packages/flowzer-sdk`, `src/FlowzerConsole` |
 | react | 19.2.8 | MIT | `packages/flowzer-react`, `src/FlowzerConsole` |
 | react-dom | 19.2.8 | MIT | `packages/flowzer-react`, `src/FlowzerConsole` |

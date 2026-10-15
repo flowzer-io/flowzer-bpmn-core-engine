@@ -19,6 +19,20 @@ public sealed class BffSessionRefresherTest
     private const string Issuer = "https://issuer.test";
     private static readonly SymmetricSecurityKey Key = new(Encoding.UTF8.GetBytes("test-only-signing-key-with-at-least-thirty-two-bytes"));
 
+    // Testzweck: Refresh ersetzt auch den Vermittler-Audit durch den neuen
+    // verifizierten Access-Token-azp; alte Cookie-/ID-Tokenwerte bleiben nicht eingefroren.
+    [Test]
+    public async Task Refresh_ShouldReplaceAuthorizedClientFromVerifiedAccessToken()
+    {
+        var ticket = Ticket();
+        ((ClaimsIdentity)ticket.Principal.Identity!).AddClaim(new Claim("azp", "stale-client"));
+        using var client = Client(HttpStatusCode.OK, JsonSerializer.Serialize(new
+            { access_token = Token("api", "person", new Claim("azp", "verified-console")) }));
+        var refreshed = await Refresher(client).RefreshAsync(ticket);
+        refreshed.Should().NotBeNull();
+        refreshed!.Principal.FindAll("azp").Select(claim => claim.Value).Should().Equal("verified-console");
+    }
+
     // Testzweck: Refresh ersetzt statt konserviert Rechte, rotiert ausschließlich das
     // serverseitige Refresh-Token und ändert die absolute Sitzungsfrist nicht.
     [Test]
@@ -139,10 +153,10 @@ public sealed class BffSessionRefresherTest
             new Claim("sub", "person"), new Claim(ClaimTypes.Role, "operator")], "test")), properties, FlowzerAuthenticationSchemes.Cookie);
     }
 
-    private static string Token(string audience, string subject) => new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
+    private static string Token(string audience, string subject, params Claim[] additionalClaims) => new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
     {
         Issuer = Issuer, Audience = audience, Expires = DateTime.UtcNow.AddMinutes(5),
-        Subject = new ClaimsIdentity([new Claim("sub", subject)]),
+        Subject = new ClaimsIdentity([new Claim("sub", subject), .. additionalClaims]),
         SigningCredentials = new SigningCredentials(Key, SecurityAlgorithms.HmacSha256)
     });
 

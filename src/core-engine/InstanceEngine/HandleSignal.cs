@@ -54,7 +54,9 @@ public partial class InstanceEngine
                 ActiveBoundaryEvents = [],
                 OutputData = JsonConvert.DeserializeObject<Variables>(signalData ?? "{}") ?? new Variables(),
                 ParentTokenId = MasterToken.Id,
-                ProcessInstanceId = MasterToken.Id,
+                // Die Master-Token-ID ist nur der Elternlink, nicht der interne Prozessscope.
+                // Signal-Starts verwenden denselben Scope-Vertrag wie None-/Timer-Starts.
+                ProcessInstanceId = MasterToken.ProcessInstanceId,
                 State = FlowNodeState.Completing
             });
             Run();

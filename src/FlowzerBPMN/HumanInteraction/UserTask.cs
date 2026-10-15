@@ -25,6 +25,13 @@ public record UserTask : Activities.Task, IFlowzerInputMapping, IFlowzerOutputMa
     /// </summary>
     public UserTaskAssignmentMode FlowzerAssignmentMode { get; init; } = UserTaskAssignmentMode.Text;
 
+    /// <summary>
+    /// Exklusive Bearbeiterquelle: verifizierter Startinitiator oder ein einzelner
+    /// typisierter Benutzerwert aus einer einfachen Prozessvariablen. Kein Ausdruck.
+    /// </summary>
+    [DoNotTranslate]
+    public string? FlowzerDirectoryAssigneeSource { get; init; }
+
     /// <summary>Stabile lokale Benutzer-ID des direkten Bearbeiters im Verzeichnismodus.</summary>
     public Guid? FlowzerDirectoryAssigneeUserId { get; init; }
 

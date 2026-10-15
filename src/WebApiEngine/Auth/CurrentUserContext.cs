@@ -15,6 +15,16 @@ public sealed record CurrentUserContext(
     public Model.AuthenticatedSubject? Identity { get; init; }
 
     /// <summary>
+    /// Verifizierter OIDC-azp des vermittelnden Clients. Kein HTTP-/Formularparameter,
+    /// kein Bestandteil des persönlichen Besitznachweises und null für Alt-/Devkontexte.
+    /// </summary>
+    public string? AuthorizedClientId { get; init; }
+
+    /// <summary>Erzeugt ausschließlich aus dem verifizierten Kontext einen internen Auditakteur.</summary>
+    internal Model.AuthenticatedActor? ToAuthenticatedActor() => Identity is null
+        ? null : new Model.AuthenticatedActor(Identity, UserId, AuthorizedClientId);
+
+    /// <summary>
     /// Alle Kennungen der Person: technische Id, Benutzername, E-Mail. Welche davon im Token
     /// steht, entscheidet der Identity Provider; die Zuweisungspruefung akzeptiert jede.
     /// </summary>

@@ -50,7 +50,8 @@ public static class DirectoryTaskAssignmentValidator
 
     private static void ValidateTextTask(UserTask task)
     {
-        if (task.FlowzerDirectoryAssigneeUserId.HasValue
+        if (task.FlowzerDirectoryAssigneeSource is not null
+            || task.FlowzerDirectoryAssigneeUserId.HasValue
             || task.FlowzerDirectoryCandidateUserIds.Count > 0
             || task.FlowzerDirectoryCandidateGroupIds.Count > 0)
         {
@@ -74,6 +75,15 @@ public static class DirectoryTaskAssignmentValidator
             .Concat(task.FlowzerDirectoryAssigneeUserId is { } assignee ? [assignee] : [])
             .ToArray();
         var groupIds = task.FlowzerDirectoryCandidateGroupIds.ToArray();
+        if (task.FlowzerDirectoryAssigneeSource is { } source)
+        {
+            if (!DirectoryAssigneeSource.IsValid(source) || userIds.Length != 0 || groupIds.Length != 0)
+                throw AssignmentError(task, "assignee source must be supported and exclusive");
+            // Der konkrete Wert existiert erst zur Laufzeit. Das vollständige Directory
+            // wird weiterhin oben verlangt; Anzeigenamen/Zeebe-Texte sind kein Fallback.
+            return;
+        }
+
         if (userIds.Length == 0 && groupIds.Length == 0)
         {
             throw AssignmentError(task, "directory mode requires at least one reference");

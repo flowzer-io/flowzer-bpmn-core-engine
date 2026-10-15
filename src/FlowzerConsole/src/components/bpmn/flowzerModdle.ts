@@ -17,6 +17,7 @@ export const FLOWZER_MODDLE = {
       superClass: ['Element'],
       properties: [
         { name: 'mode', isAttr: true, type: 'String' },
+        { name: 'assigneeSource', isAttr: true, type: 'String' },
         { name: 'assigneeId', isAttr: true, type: 'String' },
         { name: 'candidateUserIds', isAttr: true, type: 'String' },
         { name: 'candidateGroupIds', isAttr: true, type: 'String' },

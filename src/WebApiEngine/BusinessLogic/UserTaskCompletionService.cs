@@ -24,8 +24,13 @@ public sealed class UserTaskCompletionService(
             ?? throw new UnauthorizedAccessException("A request context is required for completing user tasks.");
         var canOperate = (await authorizationService.AuthorizeAsync(httpContext.User, FlowzerPolicies.Operator)).Succeeded;
         var target = $"{result.ProcessInstanceId:D}/{result.TokenId:D}";
+        // Legacy-Hashes bleiben exakt erhalten. Neue Bedingungen gehören dagegen
+        // gemeinsam zum unveränderlichen Request in einem festen Vertragsnamensraum.
+        var hasBinding = result.ExpectedUserTaskId.HasValue || result.ExpectedDefinitionId.HasValue
+            || result.RequireAssignedToCurrentUser;
         var idempotency = HttpIdempotency.Create(httpContext.Request, currentUser,
-            "user-task-completion", target, result);
+            "user-task-completion", target, result,
+            hasBinding ? "bound-user-task-completion:v1" : null);
 
         return await businessLogic.CompleteUserTaskAsync(result, currentUser, canOperate,
             httpContext.RequestAborted, idempotency);
@@ -38,3 +43,7 @@ public enum UserTaskCompletionOutcome
     Completed,
     NotFound
 }
+
+/// <summary>Sicherer Konflikt eines alten Formulars nach Versionswechsel, ohne interne Kennungen.</summary>
+public sealed class UserTaskBindingConflictException()
+    : Exception("The displayed user-task definition has changed. Reopen the task before submitting.");
