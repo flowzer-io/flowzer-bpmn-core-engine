@@ -20,9 +20,6 @@
       "volumes": [
         "postgres_data:/var/lib/postgresql/data"
       ],
-      "networks": [
-        "default"
-      ],
       "healthcheck": {
         "test": [
           "CMD-SHELL",
@@ -62,10 +59,7 @@
         "Storage__PostgreSql__ConnectionString": "${FLOWZER_DEMO_MIGRATION_CONNECTION_STRING:?FLOWZER_DEMO_MIGRATION_CONNECTION_STRING muss im freigegebenen Runtimekontext gesetzt sein}",
         "Storage__PostgreSql__MigrationConnectionString": "${FLOWZER_DEMO_MIGRATION_CONNECTION_STRING:?FLOWZER_DEMO_MIGRATION_CONNECTION_STRING muss im freigegebenen Runtimekontext gesetzt sein}",
         "TZ": "Europe/Berlin"
-      },
-      "networks": [
-        "default"
-      ]
+      }
     },
     "api": {
       "image": "ghcr.io/flowzer-io/flowzer-api@sha256:9994c7e309fab08f649b21cba44b13249c1eb28d474bcb4a73aa0a7a56552273",
@@ -132,9 +126,6 @@
       "volumes": [
         "keyring:/var/lib/flowzer/data-protection"
       ],
-      "networks": [
-        "default"
-      ],
       "healthcheck": {
         "test": [
           "CMD-SHELL",
@@ -171,9 +162,6 @@
         "FLOWZER_EMBED_API_ORIGIN": "https://flowzer.tickytask.de",
         "FLOWZER_EMBED_HOST_ORIGINS": "https://demo.tickytask.de"
       },
-      "networks": [
-        "default"
-      ],
       "healthcheck": {
         "test": [
           "CMD-SHELL",
@@ -189,8 +177,5 @@
   "volumes": {
     "postgres_data": {},
     "keyring": {}
-  },
-  "networks": {
-    "default": {}
   }
 }

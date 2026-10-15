@@ -43,6 +43,13 @@ keine Verbindung mit fremden Resources über „Connect To Predefined Network“
 Hostports. PG hat keine öffentliche Route. Dass der verwaltende Proxy das neue Netz
 für die Console erreicht, verleiht PG/API keine öffentliche Domain.
 
+Das Manifest lässt Netzdeklarationen absichtlich vollständig weg. Der geprüfte
+[Coolify-4.3.17-Parser](https://github.com/coollabsio/coolify/blob/5ff21103974a30e107ce046190fb478658a214e7/bootstrap/helpers/parsers.php)
+ergänzt das UUID-Netz selbst; ein explizites `default` bliebe zusätzlich bestehen.
+Das Vertragsmodell mit echter Compose-Interpolation prüft deshalb genau ein
+ergänztes Resource-Netz, ohne den Trust-CIDR zu verbreitern. Es ist kein Nachweis
+der tatsächlich später gerenderten Coolify-Konfiguration.
+
 Nur der Console-Dienst erhält in Coolifys Domains-Konfiguration
 `https://flowzer.tickytask.de:8080`. Der Suffix bezeichnet den **internen** Zielport;
 der Browser verwendet weiter öffentlich HTTPS/443. Keine geratenen Traefiklabels,
@@ -51,7 +58,8 @@ generiert Routing/Proxy-Netzanbindung; die tatsächlich erzeugte Konfiguration m
 vor Freigabe redigiert geprüft werden: ausschließlich Console öffentlich, kein
 zusätzlicher Wildcard-/sslip.io-/API-/PG-Router. Die derzeit dokumentierte Semantik:
 [offizielle Compose-Dokumentation](https://coolify.io/docs/applications/builds/docker-compose).
-Die konkrete installierte Controlplane-Version und deren Verhalten sind noch zu binden.
+Die installierte Version 4.3.17 ist per regulärem Metadatenread verifiziert; das
+konkret gerenderte Ressourcenverhalten bleibt vor Runtime zu binden.
 
 `FLOWZER_DEMO_TRUSTED_PROXY_CIDR` ist zwingend der tatsächlich verifizierte CIDR des
 **neuen** eigenen Resource-Netzes, kein Standardwert und kein pauschales Docker-Standard-
@@ -128,12 +136,12 @@ python3 -m unittest discover -s deploy/tickytask-demo-coolify -p 'test_*.py'
 
 Hermetische Sourceverträge plus echte lokale Compose-Interpolation mit eigenem temporärem
 HOME/DOCKER_CONFIG, synthetischer 0600-env_file und nicht existierendem Daemonsocket.
-Nur die zwei sicherheitsrelevanten Parser-Schritte werden modelliert, kein vollständiger
+Nur die benötigten ENV- und UUID-Netz-Verträge werden modelliert, kein vollständiger
 Coolify-Nachbau. Keine Host-/DB-/Netz-/Secrethelper- oder Containeraktion. Fehlendes
 Manifest war zuerst RED; eine leere fremde Maske belegt als Negativfixture den Leak.
 Diese Python-Tests sind lokale Belege, keine automatische CI-Ausführung behauptet.
 
-Vor Runtime fehlen insbesondere konkrete Controlplane-Version/Resource-/Projekt-/Umgebungs-
-und Destinationbindung, Namens-/Volume-Kollisionsprüfung, tatsächlich generierte Netze/
+Vor Runtime fehlen insbesondere die konkret gerenderte Ressourcenkonfiguration,
+Projekt-/Umgebungs- und Destinationbindung, Namens-/Volume-Kollisionsprüfung, tatsächlich generierte Netze/
 Routing/Profiles/Startkommandos, frischer Hostpreflight, DNS/TLS und Realm-
 IDs/Secretreferenzen. Keine Akzeptanz aus einem grünen Source-Review oder CI allein.

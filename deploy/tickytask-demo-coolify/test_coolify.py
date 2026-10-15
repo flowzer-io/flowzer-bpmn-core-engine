@@ -17,16 +17,24 @@ ALLOWED = {
     "console": set(),
 }
 ALIASES = set().union(*ALLOWED.values())
+RESOURCE_NETWORK = "flowzer-contract-resource"
 
 
 def project_through_compose(model, omit=None):
-    """Modelliert die zwei dokumentierten Coolify-Parser-Schritte plus echtes Compose.
+    """Modelliert begrenzte Coolify-4.3.17-Verträge plus echtes Compose.
 
     Kein vollständiger Coolify-Nachbau: nur zusätzliche Referenzalias-Injektion,
-    Leerwertersetzung und gemeinsame env_file. Ausschließlich synthetische Werte,
+    Leerwertersetzung, gemeinsame env_file und Ergänzung des UUID-Netzes.
+    Netzmodell: applicationParser, coollabsio/coolify Commit 5ff21103974a30e107ce046190fb478658a214e7.
+    Kein Predefined-Network-Opt-in. Ausschließlich synthetische Werte,
     eigener HOME/DOCKER_CONFIG, kein SDK, Container, Secrethelper oder Netzwerk.
     """
     model = copy.deepcopy(model)
+    # Der verwaltete Parser behält deklarierte Netze und ergänzt sein Resource-Netz.
+    # Explizites default würde somit eine zweite, für den Trust-CIDR unklare Route öffnen.
+    model.setdefault("networks", {})[RESOURCE_NETWORK] = {"name": RESOURCE_NETWORK, "external": True}
+    for service in model["services"].values():
+        service["networks"] = list(dict.fromkeys([*service.get("networks", []), RESOURCE_NETWORK]))
     required = set(re.findall(r"\$\{([A-Z0-9_]+):\?", json.dumps(model)))
     values = {key: "synthetic-" + key for key in required | ALIASES}
     values["FLOWZER_DEMO_TRUSTED_PROXY_CIDR"] = "172.30.77.0/24"  # Nur Testfixture, kein Hostvorschlag.
@@ -82,12 +90,18 @@ class CoolifyDemoContracts(unittest.TestCase):
 
     def test_new_resource_network_and_volumes_not_shared_destination(self):
         # Testzweck: Coolify besitzt die neuen UUID-Namen; kein globales/fremdes Netz oder Volume.
-        self.assertEqual(self.model["networks"], {"default": {}})
+        self.assertNotIn("networks", self.model)
         self.assertEqual(self.model["volumes"], {"postgres_data": {}, "keyring": {}})
         for service in self.model["services"].values():
-            self.assertEqual(service["networks"], ["default"])
+            self.assertNotIn("networks", service)
         self.assertEqual(self.model["services"]["postgres"]["volumes"], ["postgres_data:/var/lib/postgresql/data"])
         self.assertEqual(self.model["services"]["api"]["volumes"], ["keyring:/var/lib/flowzer/data-protection"])
+
+    def test_managed_parser_projection_has_only_one_own_network(self):
+        # Testzweck: Ergänztes UUID-Netz darf kein zweites default-Netz neben dem Trust-CIDR hinterlassen.
+        services, _ = project_through_compose(self.model)
+        for service in services.values():
+            self.assertEqual(set(service["networks"]), {RESOURCE_NETWORK})
 
     def test_all_five_secret_aliases_have_nonempty_masks(self):
         # Testzweck: Shared env_file darf auch den neuen PG-Adminzugang nicht fremd verteilen.
