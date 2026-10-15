@@ -1,5 +1,8 @@
 # Separate TickyTask-Demoinstallation auf Dev01 – Sourcekandidat
 
+**Nicht mehr ausgewähltes Ziel:** Christian hat stattdessen eine separate Demo auf
+einem bestehenden Coolify-Host gewählt. Aktueller Kandidat: [Cool3](../tickytask-demo-coolify/README.md).
+
 **Keine Ausrollfreigabe.** Dieser Ordner konkretisiert ausschließlich die neue,
 separate Demo `https://flowzer.tickytask.de`. Er verändert weder TT noch bestehendes
 Flowzer-Staging/Production. `compose.json` ist JSON und damit gültiges Compose-YAML;
