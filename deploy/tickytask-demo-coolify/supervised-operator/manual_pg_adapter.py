@@ -132,7 +132,7 @@ class PgBootstrapAdapter:
     def _run(self,role,user,mounts,entrypoint,extra=(),detach=False,cap_chown=False):
         args=['container','run','--pull=never','--name',self.b.namespace+'_'+role+'_'+self.b.nonce,
               '--network=none','--log-driver=none','--restart=no','--read-only','--cap-drop=ALL',
-              '--security-opt=no-new-privileges=true','--memory=384m','--cpus=0.75','--pids-limit=64',
+              '--security-opt=no-new-privileges=true','--ipc=private','--memory=384m','--cpus=0.75','--pids-limit=64',
               '--user',user,'--workdir','/','--tmpfs','/tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777',*self._label_args()]
         if cap_chown:args+=['--cap-add=CHOWN']
         # Das offizielle PGimage deklariert VOLUME data. Jeder Run bindet es
@@ -163,7 +163,7 @@ class PgBootstrapAdapter:
             image=json.loads(self._call(['image','inspect',self.b.image,'--format',fmt]))
             if image!={'id':self.b.image,'os':'linux','arch':self.b.architecture}:raise PgAdapterFailure()
             for args in [['volume','ls','--filter','name=^'+self.b.namespace+'_','--format','{{.Name}}'],
-                         ['ps','-a','--filter','name=^'+self.b.namespace+'_','--format','{{.ID}}']]:
+                         ['ps','-a','--filter','name=^/'+self.b.namespace+'_','--format','{{.ID}}']]:
                 if self._call(args).strip():raise PgAdapterFailure()
             self.state='INITIALIZING'
             for name in [self.data,self.socket]+([self.keys] if self.b.prepare_keyring else []):self._new_volume(name)
@@ -207,11 +207,11 @@ class PgBootstrapAdapter:
             if r.exit_code==0:return
             time.sleep(min(.25,max(0,until-time.monotonic())))
 
-    def _verify_pg(self):
+    def _verify_pg(self,running=True):
         fmt='{"id":{{json .ID}},"image":{{json .Image}},"labels":{{json .Config.Labels}},"user":{{json .Config.User}},"running":{{json .State.Running}},"network":{{json .HostConfig.NetworkMode}},"log":{{json .HostConfig.LogConfig.Type}},"restart":{{json .HostConfig.RestartPolicy.Name}},"mounts":[{{range .Mounts}}{"type":{{json .Type}},"name":{{json .Name}},"destination":{{json .Destination}},"rw":{{json .RW}}},{{end}}null]}'
         v=json.loads(self._call(['container','inspect',self.pg_cid,'--format',fmt]))
         if type(v) is not dict or type(v.get('running')) is not bool or v!={'id':self.pg_cid,'image':self.b.image,'labels':self.labels,'user':str(self.b.pg_uid)+':'+str(self.b.pg_gid),
-               'running':True,'network':'none','log':'none','restart':'no','mounts':v.get('mounts')} \
+               'running':v['running'] if running is None else running,'network':'none','log':'none','restart':'no','mounts':v.get('mounts')} \
                 or type(v['mounts']) is not list or v['mounts'][-1:]!=[None]:raise PgAdapterFailure()
         # Namen allein erlaubten vertauschte/readonly Mountziele trotz passender Labels.
         expected=[dict(type='volume',name=self.data,destination='/var/lib/postgresql/data',rw=True),
@@ -219,6 +219,57 @@ class PgBootstrapAdapter:
         mounts=v['mounts'][:-1]
         if len(mounts)!=2 or any(type(row) is not dict or type(row.get('rw')) is not bool for row in mounts) \
                 or sorted(mounts,key=lambda row:row.get('name',''))!=sorted(expected,key=lambda row:row['name']):raise PgAdapterFailure()
+
+    def verify_existing_pg(self,*,running=None):
+        """Nur exakten bereits gebundenen eigenen CID/Config/Mountbestand lesen, keine Adoption.
+
+        Der äußere Rootguard belegt dessen vorherige Registrierung. Eine beliebige
+        mitgegebene CID verleiht keine Rechte. Der Rückgabewert ist kein Datenbeleg.
+        """
+        if not isinstance(self.pg_cid,str) or not re.fullmatch('[a-f0-9]{64}',self.pg_cid):raise PgAdapterFailure()
+        self._verify_pg(running=running)
+        # Docker27 PidMode.Valid: nur leer/host/container; leer bedeutet privat.
+        # Zusätzliche Readbackinvarianten sind vor einem erneuten Start nötig:
+        # CID/Labels/Mountnamen allein sagen nichts über Privileged/Namespaces.
+        # Raw-JSON-Fallback hält API-Namen NanoCpus/PidsLimit konsistent.
+        fmt='{"id":{{json .Id}},"privileged":{{json .HostConfig.Privileged}},"readonly":{{json .HostConfig.ReadonlyRootfs}},"capdrop":{{json .HostConfig.CapDrop}},"capadd":{{json .HostConfig.CapAdd}},"security":{{json .HostConfig.SecurityOpt}},"ports":{{json .HostConfig.PortBindings}},"memory":{{json .HostConfig.Memory}},"nanocpus":{{json .HostConfig.NanoCpus}},"pids":{{json .HostConfig.PidsLimit}},"pidmode":{{json .HostConfig.PidMode}},"ipcmode":{{json .HostConfig.IpcMode}},"entrypoint":{{json .Config.Entrypoint}},"cmd":{{json .Config.Cmd}},"env":{{json .Config.Env}},"networks":[{{range $name,$net := .NetworkSettings.Networks}}{"name":{{json $name}},"id":{{json $net.NetworkID}}},{{end}}null],"tmpfs":{{json .HostConfig.Tmpfs}}}'
+        v=json.loads(self._call(['container','inspect',self.pg_cid,'--format',fmt]))
+        expected_cmd=['-D','/var/lib/postgresql/data','-c','listen_addresses=','-c','unix_socket_directories=/socket',
+                      '-c','unix_socket_permissions=0777','-c','password_encryption=scram-sha-256',
+                      '-c','log_statement=none','-c','log_min_error_statement=panic','-c','logging_collector=off']
+        if v['id']!=self.pg_cid or v['privileged'] is not False or v['readonly'] is not True or v['capdrop']!=['ALL'] \
+                or v['capadd'] not in ([],None) or v['security']!=['no-new-privileges=true'] or v['ports'] not in ({},None) \
+                or type(v['memory']) is not int or v['memory']!=384*1024*1024 or type(v['nanocpus']) is not int or v['nanocpus']!=750000000 \
+                or type(v['pids']) is not int or v['pids']!=64 or v['pidmode']!='' or v['ipcmode']!='private' \
+                or v['entrypoint']!=['/usr/lib/postgresql/17/bin/postgres'] or v['cmd']!=expected_cmd \
+                or v['tmpfs']!={'/tmp':'rw,nosuid,nodev,noexec,size=64m,mode=1777'}:raise PgAdapterFailure()
+        networks=v['networks']
+        if not (networks==[None] or type(networks) is list and len(networks)==2 and networks[-1] is None
+                and set(networks[0])=={'name','id'} and networks[0]['name']=='none' and type(networks[0]['id']) is str
+                and (networks[0]['id']=='' or re.fullmatch('[a-f0-9]{64}',networks[0]['id']))):raise PgAdapterFailure()
+        image=json.loads(self._call(['image','inspect',self.b.image,'--format','{"env":{{json .Config.Env}}}']))
+        def env(rows):
+            if type(rows) is not list or any(type(row) is not str or '=' not in row for row in rows):raise PgAdapterFailure()
+            values=dict(row.split('=',1) for row in rows)
+            if len(values)!=len(rows):raise PgAdapterFailure()
+            return values
+        if env(v['env'])!=env(image['env']):raise PgAdapterFailure()
+
+    def restart_existing_pg(self):
+        """Nur expliziter vorhandener CID, niemals initdb/Volumecreate/Rollenbootstrap.
+
+        Docker start ist für einen laufenden eigenen Container idempotent. Der
+        Aufrufer hat PG_VERSION/Owner schon vor Secretlieferung gebunden; nach
+        dem Start werden Config und tatsächliche Bereitschaft erneut geprüft.
+        """
+        if self.state!='NEW':raise PgAdapterFailure()
+        try:
+            self.verify_existing_pg()
+            raw=self._call(['container','start',self.pg_cid])
+            if raw.decode('ascii').strip()!=self.pg_cid:raise PgAdapterFailure()
+            self._verify_pg();self._wait_pg();self.state='RUNNING';return 0
+        except BaseException as error:
+            self.state='UNKNOWN';raise PgAdapterFailure(getattr(error,'own_pid',None)) from None
 
     def bootstrap(self):
         """Nur nach neuem Own-Inspect; keine SQL-/Passwortdatei oder Automatikwiederholung."""
