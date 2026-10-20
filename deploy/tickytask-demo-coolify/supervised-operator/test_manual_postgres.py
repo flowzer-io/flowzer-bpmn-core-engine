@@ -12,6 +12,10 @@ class BootstrapTests(unittest.TestCase):
         p=self.packet();self.assertIs(type(p),bytearray);self.assertTrue(p.startswith(b'synthetic-admin-123\n'))
         self.assertNotIn(b'\\ir 02-laufzeitrechte.sql',p);self.assertIn(b'REVOKE ALL ON TABLE',p)
         self.assertIn(b'flowzer_tt_demo_migration',p);self.assertLessEqual(len(p),16384)
+    def test_forced_password_reconnect_receives_exact_second_password_line(self):
+        # Testzweck: psql -W fragt bei kanonischem \connect trotz gleichem Benutzer erneut.
+        p=self.packet();self.assertEqual(p.count(b'synthetic-admin-123\n'),2)
+        self.assertIn(b'\\connect :datenbank\nsynthetic-admin-123\n',p)
     def test_only_reviewed_script_bytes_can_be_sent(self):
         # Testzweck: kein freier SQL-Executor über den Paketbauer.
         for changes in [dict(sql01=b'SELECT unsafe'),dict(sql02=self.scripts()[1]+b'\n')]:

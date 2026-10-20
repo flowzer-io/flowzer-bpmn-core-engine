@@ -101,7 +101,9 @@ Der relative Include wird im RAM ersetzt; es entsteht keine entfernte SQL- oder
 Passwortdatei. Rollen-/DBnamen bleiben fest, Passwörter werden nur als quotierte
 SQLdaten nach explizitem `standard_conforming_strings=on` eingesetzt. Alle
 Pakete müssen vor dem ersten Ressourcenwrite vorbereitet und auf16KiB begrenzt
-sein. Ein Restart verwendet diesen Initialpfad niemals. psql-Prompt-/Reconnect-/
+sein. psql `--password` erzwingt auch beim kanonischen `\connect` einen
+zweiten Prompt; dafür steht exakt dort eine zweite Adminpasswortzeile im
+RAM-Stream, keine SQLvariable/Datei. Ein Restart verwendet diesen Initialpfad niemals. psql-Prompt-/Reconnect-/
 EOFverhalten und der Docker-/Logkanal sind trotz reiner Vertragstests noch
 nicht auf Linux mit synthetischen Passwörtern abgenommen. Insbesondere darf
 der spätere Adapter nicht einen beliebigen stderr-Text als Passwortprompt

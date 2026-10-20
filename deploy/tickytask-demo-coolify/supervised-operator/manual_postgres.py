@@ -34,8 +34,8 @@ def initial_psql_payload(*, admin: str, migration: str, runtime: str, sql01: byt
     """Originale reviewte Rollen-/ACLskripte inline, kein persistierter Include.
 
     Passwortwerte sind ausschließlich quotierte SQLdaten bei explizitem
-    standard_conforming_strings=on. Das führende Adminpasswort wird von psqls
-    Passwortprompt gelesen, NICHT vom SQLparser. Der Aufrufer muss das gesamte
+    standard_conforming_strings=on. Adminpasswortzeilen werden nur von psqls Passwortprompts gelesen,
+    NICHT vom SQLparser. -W erzwingt auch bei \connect einen neuen Prompt. Der Aufrufer muss das gesamte
     Paket und alle eigenen Lieferpuffer nach Benutzung leeren; immutable Python-
     Strings lassen sich damit nicht nachweislich zeroisieren.
     """
@@ -49,6 +49,12 @@ def initial_psql_payload(*, admin: str, migration: str, runtime: str, sql01: byt
         include=b'\\ir 02-laufzeitrechte.sql'
         if sql01.count(include)!=1:raise BootstrapFailure()
         body=sql01.replace(include,sql02)
+        # psql17 do_connect fragt bei TRI_YES (-W) nochmals, unabhängig davon,
+        # ob Benutzer/Host gleich bleiben. Die nächste physische stdin-Zeile
+        # gehört daher dem Prompt, nicht dem nachfolgenden SQLparser.
+        connect=b'\n\\connect :datenbank\n'
+        if body.count(connect)!=1:raise BootstrapFailure()
+        body=body.replace(connect,connect+admin.encode('utf-8')+b'\n')
         prefix=(admin+'\n\\set datenbank flowzer_tt_demo\n\\set migrationsrolle flowzer_tt_demo_migration\n'
                 '\\set laufzeitrolle flowzer_tt_demo\n\\set schema flowzer\n').encode('utf-8')
         # Nach dem skripteigenen \connect erneut setzen: keine Sessionannahme.
