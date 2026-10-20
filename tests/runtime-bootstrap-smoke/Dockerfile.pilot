@@ -1,0 +1,36 @@
+# Nur der spätere ausdrücklich gebundene synthetische Pilot; kein Publisher/Produktionsimage.
+FROM mcr.microsoft.com/dotnet/sdk@sha256:b1ae36d53ae3803280431dc4b67ebdcc29ffb20c09a40748de154b584c05b259 AS build
+SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
+WORKDIR /src
+COPY . .
+# Öffentliche Quellen explizit; Audit bleibt durch Directory.Build.props aktiv.
+RUN printf '%s\n' '<configuration><packageSources><clear /><add key="nuget.org" value="https://api.nuget.org/v3/index.json" /></packageSources></configuration>' > /tmp/NuGet.Config \
+    && dotnet restore src/WebApiEngine/WebApiEngine.csproj --configfile /tmp/NuGet.Config --disable-parallel /p:FlowzerV8Native=linux-x64 \
+    && dotnet publish src/WebApiEngine/WebApiEngine.csproj --no-restore --configuration Release --output /out/api /p:UseAppHost=false /p:FlowzerV8Native=linux-x64 /p:UseSharedCompilation=false -m:1 -nr:false \
+    && dotnet restore tests/runtime-bootstrap-smoke/SmokeFeeder.csproj --configfile /tmp/NuGet.Config \
+    && dotnet publish tests/runtime-bootstrap-smoke/SmokeFeeder.csproj --no-restore --configuration Release --output /out/feeder /p:UseAppHost=false /p:UseSharedCompilation=false -m:1 -nr:false
+# Beide Projekte bleiben unverändert. Gemeinsame Dateien dürfen nur bytegleich zusammengeführt werden.
+RUN test -z "$(find /out/api /out/feeder -type l -print -quit)" \
+    && mkdir /out/bundle && cp -a /out/api/. /out/bundle/ \
+    && while IFS= read -r -d '' file; do \
+         relative="${file#/out/feeder/}"; destination="/out/bundle/$relative"; \
+         if [[ -e "$destination" ]]; then cmp -- "$file" "$destination"; \
+         else mkdir -p "$(dirname "$destination")"; cp -- "$file" "$destination"; fi; \
+       done < <(find /out/feeder -type f -print0)
+ARG PILOT_NONCE
+# Die frische Nonce verhindert nur für diese kleinen Pinzeilen einen stillen Cachetreffer.
+RUN [[ "$PILOT_NONCE" =~ ^[a-f0-9]{32}$ ]] \
+    && cd /out/bundle \
+    && test -f runtimes/linux-x64/native/ClearScriptV8.linux-x64.so \
+    && printf 'FLOWZER_PILOT_API=%s\n' "$(sha256sum WebApiEngine.dll | cut -d' ' -f1)" \
+    && printf 'FLOWZER_PILOT_FEEDER=%s\n' "$(sha256sum SmokeFeeder.dll | cut -d' ' -f1)" \
+    && printf 'FLOWZER_PILOT_NATIVE=%s\n' "$(sha256sum runtimes/linux-x64/native/ClearScriptV8.linux-x64.so | cut -d' ' -f1)" \
+    && printf 'FLOWZER_PILOT_INVENTORY=%s\n' "$(find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)" \
+    && printf 'FLOWZER_PILOT_API_CONFIG=%s\n' "$(base64 -w0 WebApiEngine.runtimeconfig.json)" \
+    && printf 'FLOWZER_PILOT_FEEDER_CONFIG=%s\n' "$(base64 -w0 SmokeFeeder.runtimeconfig.json)"
+
+FROM mcr.microsoft.com/dotnet/aspnet@sha256:e4b445f93a5deeb6bd7de300febceb8dd7e481ac65ccf1b474eddc3642a3010f
+WORKDIR /app
+COPY --from=build /out/bundle/ ./
+# Keine zusätzlichen ENV/Loader-/Authwerte; der vorhandene Parent setzt ausschließlich nichtgeheime Bindungen.
+ENTRYPOINT ["/usr/share/dotnet/dotnet", "/app/SmokeFeeder.dll"]

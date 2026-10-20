@@ -41,7 +41,7 @@ den nuspec-Metadaten des lokalen NuGet-Cache.
 | Microsoft.Extensions.TimeProvider.Testing | 9.10.0 | MIT | `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj` |
 | Microsoft.NET.Test.Sdk | 18.4.0 | MIT | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj`, `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`, `src/core-engine-tests/core-engine-tests.csproj` |
 | Newtonsoft.Json | 13.0.4 | MIT | `src/Model/Model.csproj`, `src/PostgreSqlStorageSystem/PostgreSqlStorageSystem.csproj`, `src/WebApiEngine.Shared/WebApiEngine.Shared.csproj`, `src/core-engine/core-engine.csproj` |
-| Npgsql | 10.0.3 | PostgreSQL | `src/PostgreSqlStorageSystem/PostgreSqlStorageSystem.csproj` |
+| Npgsql | 10.0.3 | PostgreSQL | `src/PostgreSqlStorageSystem/PostgreSqlStorageSystem.csproj`, `tests/runtime-bootstrap-smoke/SmokeFeeder.csproj` |
 | NUnit | 4.5.1 | MIT | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj`, `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`, `src/core-engine-tests/core-engine-tests.csproj` |
 | NUnit.Analyzers | 4.12.0 | MIT | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj`, `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`, `src/core-engine-tests/core-engine-tests.csproj` |
 | NUnit3TestAdapter | 6.2.0 | MIT | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj`, `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`, `src/core-engine-tests/core-engine-tests.csproj` |
