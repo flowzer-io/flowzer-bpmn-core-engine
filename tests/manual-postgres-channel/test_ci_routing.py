@@ -58,6 +58,8 @@ class Routes(unittest.TestCase):
         self.assertIn("cancel-in-progress: ${{ inputs.pg_channel_opening == '' }}",text)
         self.assertIn('flowzer-pg-channel-proof/proof.safe.json',block)
         self.assertIn('tests/manual-postgres-channel/test_ci_routing.py',block)
+        self.assertIn('tests/manual-runtime-channel/run_fixture.py --once',block)
+        self.assertIn('tests/manual-runtime-channel/run_fixture.py --preflight-only',block)
         for forbidden in ['secrets.', 'environment:', 'packages:', 'workflow_dispatch:', 'release.yml', 'staging.yml']:
             self.assertNotIn(forbidden,block)
         self.assertEqual(set(re.findall(r'uses: ([^\n]+)',block)),{'actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4','actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4'})

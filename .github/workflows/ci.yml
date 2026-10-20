@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       pg_channel_opening:
-        description: 'Nur nach Root-Lease: fester Nur-PG-Modus mit öffentlichen Source-/Tree-/Workflow-/Nonce-/Fristbindungen; leer unverändert.'
+        description: 'Nur nach Root-Lease: fester PG- oder Runtime-Kanalmodus mit öffentlichen Source-/Tree-/Workflow-/Nonce-/Fristbindungen; leer unverändert.'
         type: string
         required: false
         default: ''
@@ -635,9 +635,9 @@ jobs:
 
   pg_channel:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.pg_channel_opening != '' }}
-    name: Nur PostgreSQL-Kanal, synthetische Daten
+    name: Gebundener PG- oder Runtime-Kanal, synthetische Daten
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 12
     env:
       PG_CHANNEL_OPENING: ${{ inputs.pg_channel_opening }}
       PG_LEGACY_OPENING: ${{ inputs.stdin_pilot_opening }}
@@ -652,7 +652,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -I -B tests/manual-postgres-channel/run_fixture.py --preflight-only
+          python3 -I -B tests/manual-runtime-channel/run_fixture.py --preflight-only
 
       - name: Reine Adapter- und eigene Fake-Formatterverträge
         shell: bash
@@ -662,12 +662,14 @@ jobs:
           python3 -I -B tests/manual-postgres-channel/test_fixture.py
           python3 -I -B tests/manual-postgres-channel/test_ci_routing.py
           python3 -I -B tests/manual-postgres-channel/test_docker_formats.py
+          python3 -I -B deploy/tickytask-demo-coolify/supervised-operator/test_manual_runtime_adapter.py
+          python3 -I -B tests/manual-runtime-channel/test_fixture.py
 
-      - name: Einmalige isolierte PG-Kanalqualifikation
+      - name: Einmalige isolierte gebundene Kanalqualifikation
         shell: bash
         run: |
           set -euo pipefail
-          python3 -I -B tests/manual-postgres-channel/run_fixture.py --once
+          python3 -I -B tests/manual-runtime-channel/run_fixture.py --once
 
       - name: Ausschließlich sicheren terminalen Beleg sichern
         if: always()
