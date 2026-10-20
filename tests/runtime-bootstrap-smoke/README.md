@@ -4,8 +4,8 @@ Genau zwei eigene wegwerfbare Container: PG/SCRAM am gemeinsamen Unixsocket und
 Feeder/API, kein Hostport/Hostnetz/Dockersocketmount. Die Adapterquelle ist vorhanden,
 aber **in diesem Stand nicht tatsächlich ausgeführt**. Alle aktuellen Tests ersetzen
 Docker-/DB-/Prozess-/HTTP-/Clockränder durch Fakes. Keine Pipeline oder Produktdatei
-wird hierfür verändert. Die bisherigen grünen CI-Läufe des Draft383 enthalten diese
-sieben neuen Dateien noch nicht.
+wird hierfür fachlich verändert. Der tatsächliche Source-Lauf39434711735/a1
+am0a4fe7a enthält die Feeder-Fakes und ist8/8grün; das ist kein Positivpilot.
 
 ## Reine Source-Tests
 
@@ -98,15 +98,65 @@ nur kompiliert beziehungsweise statisch und mit Fake-JSON/FDs geprüft, **nicht 
 #375, nativer Coolify-RED, produktiver Feeder/Restart, TT-Imageparität und echte
 Keycloak-/HTTPS-/45-Minuten-Formular-/Demoabnahme bleiben separat offen.
 
-## Implementierter CI-Anschluss, Hostedlauf noch ausstehend
+## Implementierter CI-Anschluss, separat qualifizierte Source-CI
 
 Im bestehenden dotnet-Job ist der schlanke Anschluss über
 `scripts/ci/run_runtime_smoke_contracts.py` implementiert: die tatsächlichen
 19 Python-Fakes sowie ein isolierter öffentlicher Restore/enger Build dieses
 kleinen unveränderten Projekts und `--contract-test` mit Count15/Exit0/NoSkip.
 Der lokale tatsächliche Helferlauf hat Python19/19 und C#15/15 bestanden; die
-separaten Helper-/Verdrahtungstests verwenden reine Mocks. Der neue Hostedlauf
-steht noch aus. Die bisherigen 13-/17-Bootstrapverträge bleiben unverändert.
+separaten Helper-/Verdrahtungstests verwenden reine Mocks. Source-CI39434711735/a1
+und CodeQL39434706160/a1 sind am0a4fe7a tatsächlich8/8 beziehungsweise4/4grün.
+Das qualifiziert nicht die danach ergänzten Pilotträgerbytes. Die bisherigen
+13-/17-Bootstrapverträge bleiben unverändert.
 Kein neuer Job/Workflow/Matrix, kein automatischer Container-/Positivlauf.
 Details und Frameworkauflösungsvertrag stehen in `scripts/ci/README.md`.
 Das ist ausdrücklich kein Runtime-/Demo-Go; P3 bleibt offen.
+
+## Optionaler späterer öffentlicher Hosted-Pilot – noch nicht ausgeführt
+
+Der vorhandene `dotnet`-Job kann die einzige lokale Composite-Assemblierung und
+den unveränderten `run_smoke.py --bound-run` tragen. Kein weiterer Workflow/Job,
+kein neuer Runtime-Runner. Routine-PRs führen ausschließlich die zusätzlichen
+synthetischen Trägertests aus; der normale Dispatch bleibt ebenfalls geschlossen.
+Ein eigener Test führt nur die tatsächliche Bash-Dateikollisionsprüfung gegen
+temporäre öffentliche Bytes aus, niemals Docker, SDK oder Netz.
+
+Nur ein gesondert freigegebener `workflow_dispatch` mit nichtleerem Input
+`stdin_pilot_opening` aktiviert den Träger. Die nichtgeheime JSON-Lease verlangt
+exakt `version`, `owner`, frische `nonce`, `sourceSha`, `sourceTree`,
+`workflowSha256`, `expiresUnix` (höchstens30Minuten) und `p3Accepted=true`.
+Nur dieser öffentliche Repository-/Topic-Kontext, Linux/X64, GitHub-hosted und
+Attempt1 sind zugelassen. Diese Angaben sind keine Signatur/Autorisierung;
+der konkrete Root-Slot bleibt vor jedem Dispatch erforderlich. Kein stiller
+Wechsel auf Dev02, private Runner, Coolify oder Production.
+
+`Dockerfile.pilot` nutzt fest gepinnte öffentliche SDK-/ASP-Basen, veröffentlicht
+API und Feeder separat und vereinigt gemeinsame Dateien ausschließlich bei
+Bytegleichheit. Keine Produkt-, Auth-, Migrations-, RollForward- oder
+ENV-Allowliständerung. Der Träger liest die tatsächlichen Build-Pins und neue
+lokale Image-ID, validiert Runtimeconfigs und bildet erst dann die persönliche
+19-Feld-Openingdatei des bestehenden Parents mit maximal300sTTL. Der erwartete
+Migrationsstand ist **20**, nicht der unabhängige21-Beispielwert der Fakes.
+Die gepinnten Images verwenden PG-UID999 und ASP-UID1654, gemeinsamen GID22000;
+Root muss diese konkrete Auswahl mit dem Image-/Socketvertrag freigeben.
+
+Vor Writes:2CPU,2GiB MemAvailable-Reserve,4GiB freier Arbeitsraum, exakte Namen
+abwesend. Genau drei öffentliche digestgebundene Pulls, ein Compositebuild,
+ein bestehender Parentaufruf; kein Login/Push/Retry. Die Pulllimits sind je120s,
+Build300s, Parent420s und Namensreads10s; die Schrittfrist beträgt20Minuten.
+BuildKit wird nicht als separat cgroup-begrenzter Build behauptet. Runtimecaps
+bleiben PG256MiB/64PIDs, API768MiB/128PIDs und je1CPU; kein Null-Swapversprechen.
+Kein Timeout ist ein Cleanupbeleg. Bei Fehlern bleibt der eigene Arbeitsbereich
+erhalten; der Träger liest ausschließlich die eigenen Namen nach und stoppt
+niemals unklare/fremde CIDs. Erfolg setzt unabhängig gelesene Namensabwesenheit
+voraus. Die eigene lokale Compositeimage-/Basisimagecachebelegung bleibt bis zur
+Wegwerf-Runnerentsorgung erhalten, nicht als Registryveröffentlichung.
+
+Die bislang unbekannten tatsächlichen Linux-DLL-/Native-/Inventar-/Imagepins
+entstehen erst bei einer später freigegebenen Assemblierung. Kein Hash wird aus
+Macoutputs oder Riglogs als neuer Pin eingesetzt. Das offene numerische PID-P3
+ist ausschließlich für den später frisch erzeugten exklusiv eigenen APIcontainer
+mit privatem PID-Namensraum eng akzeptiert, nicht erledigt und kein stabiler
+Handle. Ohne konkrete Run-Lease keine Ausführung. Dieser Source-Stand ist lokal
+synthetisch zu testen/reviewen, aber weder gepusht noch Hosted-/Runtime-abgenommen.

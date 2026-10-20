@@ -84,16 +84,19 @@ def require_empty_group(pid):
     raise ToolCleanupUnknown(pid)
 
 
-def run_tool(command, environment, capture=False):
-    """Eigene CLI-Gruppe, feste Fristen und Gruppenabschluss; keine Fehlerfilterung."""
+def run_tool(command, environment, capture=False, *, merge_stderr=False, timeout=180):
+    """Eigene CLI-Gruppe; optional beide begrenzten Kanäle und explizite Frist für den Pilotenträger."""
+    if not 1 <= timeout <= 600 or merge_stderr and not capture:
+        raise ValueError('Bounded explicit tool deadline/capture required')
     process = subprocess.Popen(command, cwd=ROOT, env=environment, stdin=subprocess.DEVNULL,
                                stdout=subprocess.PIPE if capture else None,
+                               stderr=subprocess.STDOUT if merge_stderr else None,
                                close_fds=True, start_new_session=True)
     try:
         try:
-            output = read_bounded_output(process) if capture else ''
+            output = read_bounded_output(process, timeout=timeout) if capture else ''
             if not capture:
-                process.wait(timeout=180)
+                process.wait(timeout=timeout)
         except BaseException:
             try:
                 # Nur der eigene noch lebende Leader legitimiert ein Gruppensignal.
@@ -111,7 +114,7 @@ def run_tool(command, environment, capture=False):
             raise
         require_empty_group(process.pid)
         if process.returncode:
-            raise subprocess.CalledProcessError(process.returncode, command)
+            raise subprocess.CalledProcessError(process.returncode, command, output=output)
         return output
     finally:
         if process.stdout is not None:

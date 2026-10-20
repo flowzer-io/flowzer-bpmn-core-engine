@@ -10,6 +10,12 @@ on:
       - main
       - release
   workflow_dispatch:
+    inputs:
+      stdin_pilot_opening:
+        description: 'Nur nach Root-Lease: nichtgeheime, Source-/Tree-/Workflow-gebundene JSON-Bindung; leer bleibt geschlossen.'
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -62,7 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           python3 -I -B scripts/ci/test_runtime_smoke_ci.py
+          python3 -I -B scripts/ci/test_runtime_smoke_pilot.py
           python3 -I -B scripts/ci/run_runtime_smoke_contracts.py --dotnet "$(command -v dotnet)" --temp-root "$RUNNER_TEMP"
+
+      # Kein Routine-PR-Pilot: exakt ein später separat freigegebener öffentlicher Hosted-Dispatch.
+      - name: Gebundenen synthetischen stdin-Positivpiloten ausführen
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.stdin_pilot_opening != '' }}
+        timeout-minutes: 20
+        shell: bash
+        env:
+          FLOWZER_PILOT_OPENING: ${{ inputs.stdin_pilot_opening }}
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/ci/run_runtime_smoke_pilot.py --opening "$FLOWZER_PILOT_OPENING" --docker "$(command -v docker)" --temp-root "$RUNNER_TEMP"
 
       # Kein zusaetzlicher apt-get-Schritt fuer ClearScript/V8 noetig: Microsoft.ClearScript.
       # V8.Native.linux-x64 (siehe src/WebApiEngine.Tests, src/core-engine-tests) verlangt laut
