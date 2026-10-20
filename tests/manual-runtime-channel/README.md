@@ -70,3 +70,16 @@ Modus ausdrücklich über `kind`, enthält getrennte Source-/Imagepins und nur
 feste Statusfelder/numerische eigene Handles. PASS benötigt alle Fälle plus
 Cleanup ABSENT und keine unbekannten lokalen Handles. ARM64, private Cool3-
 Installation und die eigentliche Demo-/Browserabnahme bleiben eigene Schritte.
+
+## Vollständige Labelbindung
+
+Docker erbt bei Containercreate sämtliche Imagelabels. Vor Secretlieferung wird
+daher die vollständige begrenzte Labelmap aus der bereits exakt SHA-/Config-/
+Architektur-/Revision-gebundenen API gelesen. Reservierte eigene Labelschlüssel
+im Image sind verboten. App-/Migratorinspect und Fixturecleanup verlangen die
+exakte vollständige Union dieser Imagelabels mit den eigenen Run-/Ownerlabels;
+fehlende, zusätzliche oder veränderte Labels bleiben gesperrt. PG-/Netz-/Volume-
+bindungen bleiben unverändert. Der historische erste kombinierte Hostedversuch
+39512694409 scheiterte beim Migratorreadback; dessen Cleanup bleibt UNKNOWN,
+nicht nachträglich zu ABSENT umgedeutet. Dieser Sourcefix ist noch kein neuer
+nativer Beleg.

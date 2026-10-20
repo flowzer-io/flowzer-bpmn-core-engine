@@ -187,7 +187,7 @@ class RuntimePorts:
         else:require(prior_pg_cid is None and prior_api_cid is None)
         self.pg=pg.PgBootstrapAdapter(binding,target,guard,pipe);self.r=runtime;self.guard=guard;self.mode=mode
         self.prior_pg=prior_pg_cid;self.prior_api=prior_api_cid;self.state='NEW';self.bundle=None;self.canaries=[]
-        self.expected_api=None;self.expected_migration=None;self.sql_packets={};self.image_env=None;self.api_cid=None
+        self.expected_api=None;self.expected_migration=None;self.sql_packets={};self.image_env=None;self.image_labels=None;self.api_cid=None
         self.env=runtime.settings.environment()
 
     def _raw(self,args,payload=b'',timeout=60):
@@ -207,13 +207,21 @@ class RuntimePorts:
         merged.update(values);return merged
 
     def _image(self):
-        fmt='{"id":{{json .ID}},"os":{{json .Os}},"arch":{{json .Architecture}},"revision":{{json (index .Config.Labels "org.opencontainers.image.revision")}},"env":{{json .Config.Env}}}'
+        fmt='{"id":{{json .ID}},"os":{{json .Os}},"arch":{{json .Architecture}},"revision":{{json (index .Config.Labels "org.opencontainers.image.revision")}},"labels":{{json .Config.Labels}},"env":{{json .Config.Env}}}'
         v=json.loads(self._call(['image','inspect',self.r.api_image,'--format',fmt]))
         require(v['id']==self.r.api_image and v['os']=='linux' and v['arch']==self.pg.b.architecture and v['revision']==self.r.api_source)
         require(type(v['env']) is list and all(type(x) is str and '=' in x for x in v['env']))
         base=dict(x.split('=',1) for x in v['env']);require(len(base)==len(v['env']))
         # Nur deklarierte Standardimagewerte; keine konkurrierenden Secret-/Loaderprovider.
         require(set(base)<= {'PATH','APP_UID','ASPNET_VERSION','DOTNET_VERSION','DOTNET_RUNNING_IN_CONTAINER','ASPNETCORE_HTTP_PORTS','ASPNETCORE_URLS','FLOWZER_STORAGE_ROOT'})
+        # Docker create übernimmt Image-Labels zusätzlich zu den Runlabels.
+        # Vollständige unveränderliche Imageconfig binden, niemals nur Owner-Subset
+        # akzeptieren oder beliebige Containerlabels nachträglich übernehmen.
+        labels=v['labels'];require(type(labels) is dict and 1<=len(labels)<=32)
+        require(all(type(k) is str and 0<len(k)<=256 and type(value) is str and len(value)<=4096 for k,value in labels.items()))
+        require(labels.get('org.opencontainers.image.revision')==self.r.api_source
+                and not any(k in self.pg.labels or k.startswith('flowzer.tt.demo.') for k in labels))
+        self.image_labels=dict(labels)
         self.image_env=tuple(v['env'])
 
     def _network(self,*,timeout=60):
@@ -341,7 +349,7 @@ class RuntimePorts:
         # Docker27: leerer PidMode ist privat; das Literal 'private' ist ungueltig.
         v=json.loads(self._call(['container','inspect',cid_or_name,'--format',APP_FMT],timeout=timeout));require(type(v) is dict)
         require(re.fullmatch('[a-f0-9]{64}',v['id']) and (v['id']==cid_or_name or cid_or_name==self._name(role,nonce)))
-        require(v['name']=='/'+self._name(role,nonce) and v['image']==self.r.api_image and v['labels']==self._labels(nonce)
+        require(v['name']=='/'+self._name(role,nonce) and v['image']==self.r.api_image and v['labels']==dict(self.image_labels,**self._labels(nonce))
                 and v['user']==str(self.r.uid)+':'+str(self.r.gid) and type(v['running']) is bool and v['running'] is running
                 and type(v['exit']) is int and (role!='migrate' or v['exit']==0)
                 and v['entrypoint']==['dotnet','WebApiEngine.dll'] and v['cmd']==(['--migrate','--secrets-stdin'] if role=='migrate' else ['--secrets-stdin'])

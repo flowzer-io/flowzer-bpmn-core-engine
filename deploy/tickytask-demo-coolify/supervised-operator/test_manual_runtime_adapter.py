@@ -7,6 +7,7 @@ D=Path(__file__).parent
 for n in ['manual_pg_adapter','manual_operator','manual_readiness','manual_runtime_adapter']:
  s=importlib.util.spec_from_file_location(n,D/(n+'.py'));m=importlib.util.module_from_spec(s);sys.modules[n]=m;s.loader.exec_module(m)
 a=sys.modules['manual_runtime_adapter'];op=sys.modules['manual_operator'];pg=sys.modules['manual_pg_adapter'];t=sys.modules['manual_transport']
+BASE_LABELS={'org.opencontainers.image.revision':'f'*40,'org.opencontainers.image.title':'Synthetic API'}
 class Pipe:
     def __init__(self):self.calls=[];self.labels={};self.runs={};self.stopped_ids=set();self.bad=None;self.history=False;self.cids={}
     def exchange(self,argv,payload,secrets,**kw):
@@ -14,7 +15,7 @@ class Pipe:
         if self.bad=='transport':raise t.TransportFailure('HANDLE_UNKNOWN',12345)
         if args[:2]==['image','inspect']:
             isapi=args[2]=='sha256:'+'e'*64
-            out=json.dumps(dict(id=args[2],os='linux',arch='arm64',**(dict(revision='f'*40,env=['PATH=/usr/bin:/bin']) if isapi else (dict(env=[]) if '.Config.Env' in args[-1] else {})))).encode()
+            out=json.dumps(dict(id=args[2],os='linux',arch='arm64',**(dict(revision='f'*40,env=['PATH=/usr/bin:/bin'],labels=dict(BASE_LABELS,**({'flowzer.tt.demo.owner':'FOREIGN'} if self.bad=='image-owner' else {}))) if isapi else (dict(env=[]) if '.Config.Env' in args[-1] else {})))).encode()
         elif args[:2]==['network','inspect']:
             peers=[cid for n,cid in self.cids.items() if n in self.runs and '_api_' in n and cid not in self.stopped_ids]
             if self.bad=='peer':peers.append('f'*64)
@@ -49,6 +50,8 @@ class Pipe:
             running=role!='migrate' and self.cids[name] not in self.stopped_ids
             common=dict(id=self.cids[name],image=('sha256:'+'1'*64 if role=='postgres' else 'sha256:'+'e'*64),labels=labs,user='999:999' if role=='postgres' else '1654:1654',running=running,network='none' if role!='api' else 'a'*64,log='none',restart='no',mounts=mounts+[None])
             if role!='postgres':
+                common['labels']=dict(BASE_LABELS,**common['labels'])
+                if self.bad=='extra-label':common['labels']['unapproved.extra']='unexpected'
                 env=[k+'='+v for k,v in dict([('PATH','/usr/bin:/bin')]+[tuple(v.split('=',1)) for i,v in enumerate(run) if i and run[i-1]=='--env']).items()]
                 common.update(entrypoint=['dotnet','WebApiEngine.dll'],cmd=['--migrate','--secrets-stdin'] if role=='migrate' else ['--secrets-stdin'],pidmode='',ipcmode='private',name='/'+run[run.index('--name')+1],exit=0,env=env,ports={},readonly=True,privileged=False,capdrop=['ALL'],capadd=None,security=['no-new-privileges=true'],memory=(768 if role=='api' else 1024)*1024*1024,nanocpus=1000000000,pids=128,networks=[dict(name='syntheticflowzer123456' if role=='api' else 'none',id='a'*64 if role=='api' else ''),None],tmpfs={'/tmp':'rw,nosuid,nodev,noexec,size=64m,mode=1777'})
             if role=='postgres':
@@ -200,7 +203,7 @@ class RuntimeTests(unittest.TestCase):
                     if '--format' not in args:return result
                     seen.add(tuple(args[:2]));v=json.loads(result.stdout) if result.stdout else None
                     if args[:2]==['image','inspect']:
-                        raw=dict(Id=v['id'],Os=v['os'],Architecture=v['arch'],Config=dict(Env=v.get('env',[]),Labels={'org.opencontainers.image.revision':v.get('revision','')}))
+                        raw=dict(Id=v['id'],Os=v['os'],Architecture=v['arch'],Config=dict(Env=v.get('env',[]),Labels=v.get('labels',{})))
                     elif args[:2]==['network','inspect']:
                         raw=dict(Id=v['id'],Driver=v['driver'],Internal=v['internal'],IPAM=dict(Config=[dict(Subnet=x) for x in v['subnets'] if x]),Labels=v['labels'],Containers={cid:dict(Name='synthetic',EndpointID='1'*64,MacAddress='',IPv4Address='172.30.77.2/24',IPv6Address='') for cid in v.get('peers',[]) if cid})
                     elif args[:2]==['volume','inspect']:raw=dict(Name=v['name'],Driver=v['driver'],Labels=v['labels'])
@@ -279,6 +282,15 @@ class RuntimeTests(unittest.TestCase):
         ports,p,_=self.initial()
         self.assertFalse(any(v=='--pid=private' for args,_,_ in p.calls for v in args))
         self.assertTrue(any('--ipc=private' in args for args,_,_ in p.calls))
+
+    def test_image_labels_are_fully_inherited_but_foreign_extra_or_owner_collision_blocks(self):
+        # Testzweck: Docker erbt vollständige Imagelabels; nur exakt attestierte Union ist zulässig.
+        ports,p,_=self.initial();self.assertEqual(ports.image_labels,BASE_LABELS)
+        ports,p=self.make();p.bad='image-owner';delivered=[]
+        with self.assertRaises(op.OperatorFailure):op.ManualOperator().run('initial',ports,lambda:delivered.append(True))
+        self.assertEqual(delivered,[]);self.assertFalse(any(args[:2]==['container','run'] for args,_,_ in p.calls))
+        ports,p=self.make();ports.observe();b=ports.accept_bundle(self.bundle());ports.initialize(b);ports.pg_start();ports.bootstrap(b);ports.pg_proof();p.bad='extra-label'
+        with self.assertRaises(op.PortFailure):ports.migrate(ports.expected_migration)
 
     def test_invalid_settings_block_before_remote_io(self):
         # Testzweck: keine Broadproxy-/fremdeRealm-/clearHTTP-/Rootuserbindung.

@@ -68,7 +68,7 @@ class CombinedPipe(old.LocalDockerPipe):
         super().__init__(guard,plan);self.end=time.monotonic()+420
         self.namespace='flowzer-runtime-'+plan['nonce'];self.names=[self.namespace]
         self.restart_nonce=hashlib.sha256((plan['nonce']+'restart').encode()).hexdigest()[:32]
-        self.network=None;self.cleanup_done=None
+        self.network=None;self.image_labels=None;self.cleanup_done=None
     def command_id(self,args):
         if args[:2]==['container','run']:return 'APP_START' if '--entrypoint' not in args else super().command_id(args)
         if args[0]=='network':
@@ -88,7 +88,11 @@ class CombinedPipe(old.LocalDockerPipe):
         require(role in ('ownership-pg','ownership-key','initdb','postgres','migrate','api') and nonce in (self.plan['nonce'],self.restart_nonce),'CLEANUP')
         require(role in ('migrate','api') or nonce==self.plan['nonce'],'CLEANUP')
         require(v['image']==(API_ID if role in ('migrate','api') else old.IMAGE_ID),'CLEANUP')
-        require(v['labels']==dict(self.labels(self.namespace),**{'flowzer.tt.demo.nonce':nonce}),'CLEANUP')
+        base={}
+        if role in ('migrate','api'):
+            require(type(self.image_labels) is dict,'CLEANUP');base=self.image_labels
+        expected=dict(base);expected.update(self.labels(self.namespace));expected['flowzer.tt.demo.nonce']=nonce
+        require(v['labels']==expected,'CLEANUP')
         return v
     def owned(self,*,cleanup=False,until=None):
         def cmd(args):return self.checked(args,cleanup=cleanup,timeout=min(5,max(.01,until-time.monotonic())) if until else 5)
@@ -114,9 +118,14 @@ class CombinedPipe(old.LocalDockerPipe):
         """Nur veröffentlichte immutable Images und ein frisches eigenes nichtinternes Netz."""
         for image,pin,revision in [(old.IMAGE,old.IMAGE_ID,None),(API_IMAGE,API_ID,API_SOURCE)]:
             self.checked(['image','pull','--quiet','--platform=linux/amd64',image],timeout=90)
-            fmt='{"id":{{json .ID}},"os":{{json .Os}},"arch":{{json .Architecture}},"revision":{{json (index .Config.Labels "org.opencontainers.image.revision")}}}'
+            fmt='{"id":{{json .ID}},"os":{{json .Os}},"arch":{{json .Architecture}},"revision":{{json (index .Config.Labels "org.opencontainers.image.revision")}},"labels":{{json .Config.Labels}}}'
             v=json.loads(self.checked(['image','inspect',image,'--format',fmt]));require(v['id']==pin and v['os']=='linux' and v['arch']=='amd64')
-            if revision:require(v['revision']==revision)
+            if revision:
+                require(v['revision']==revision and type(v['labels']) is dict and 1<=len(v['labels'])<=32)
+                require(all(type(k) is str and 0<len(k)<=256 and type(value) is str and len(value)<=4096 for k,value in v['labels'].items()))
+                require(v['labels'].get('org.opencontainers.image.revision')==revision
+                        and not any(k in self.labels(self.namespace) or k.startswith('flowzer.tt.demo.') for k in v['labels']))
+                self.image_labels=dict(v['labels'])
         require(not self.checked(['network','ls','--filter','name=^'+self.namespace+'$','--format','{{.ID}}']).strip())
         # Kein Fallback auf ein anderes Netz/Subnetz: Docker weist Überschneidungen ab.
         args=['network','create','--driver','bridge','--subnet',CIDR]

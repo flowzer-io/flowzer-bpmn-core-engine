@@ -6,7 +6,7 @@ P=Path(__file__).with_name('run_fixture.py')
 s=importlib.util.spec_from_file_location('combined_fixture',P);m=importlib.util.module_from_spec(s);sys.modules[s.name]=m;s.loader.exec_module(m)
 
 def owned_value(port,role,cid,running):
-    return dict(id=cid,name='/'+port.namespace+'_'+role+'_'+port.plan['nonce'],image=m.API_ID if role in ('api','migrate') else m.old.IMAGE_ID,labels=port.labels(port.namespace),running=running,exit=0)
+    return dict(id=cid,name='/'+port.namespace+'_'+role+'_'+port.plan['nonce'],image=m.API_ID if role in ('api','migrate') else m.old.IMAGE_ID,labels=dict((port.image_labels or {}) if role in ('api','migrate') else {},**port.labels(port.namespace)),running=running,exit=0)
 
 class Contracts(unittest.TestCase):
     def env(self,mode='runtime-channel-v1'):
@@ -35,6 +35,26 @@ class Contracts(unittest.TestCase):
         self.assertEqual(public.environment()['Authentication__JwtBearer__RequireHttpsMetadata'],'true')
         self.assertEqual(public.environment()['IdentityDirectory__Enabled'],'true')
         for forbidden in ['FixtureRunner.cs','docker build','PGPASSWORD','--insecure','verify=False']:self.assertNotIn(forbidden,P.read_text())
+    def test_prepare_binds_complete_image_labels_and_blocks_reserved_collision_before_network_write(self):
+        # Testzweck: Cleanup erwartet nur unveränderliche Imageconfig, keine später adoptierten Containerlabels.
+        for collision in [False,True]:
+            port=m.CombinedPipe(lambda:None,self.plan());calls=[]
+            labels={'org.opencontainers.image.revision':m.API_SOURCE,'org.opencontainers.image.title':'Synthetic API'}
+            if collision:labels['flowzer.tt.demo.owner']='FOREIGN'
+            def checked(args,**kw):
+                calls.append(args)
+                if args[:2]==['image','inspect']:
+                    api=args[2]==m.API_IMAGE
+                    return json.dumps(dict(id=m.API_ID if api else m.old.IMAGE_ID,os='linux',arch='amd64',revision=m.API_SOURCE if api else None,labels=labels if api else None)).encode()
+                if args[:2]==['network','create']:return b'a'*64+b'\n'
+                return b''
+            port.checked=checked
+            if collision:
+                with self.assertRaises(m.old.FixtureFailure):port.prepare()
+                self.assertFalse(any(a[:2]==['network','create'] for a in calls));self.assertIsNone(port.image_labels)
+            else:
+                port.prepare();self.assertEqual(port.image_labels,labels);self.assertEqual(port.network,'a'*64)
+
     def test_names_nonce_restart_and_resource_labels_are_explicit(self):
         # Testzweck: Restart verwendet gleiche Ressourcennamen, aber neuen eindeutig gebundenen Appversuch.
         port=m.CombinedPipe(lambda:None,self.plan());self.assertNotEqual(port.restart_nonce,port.plan['nonce'])
@@ -43,9 +63,9 @@ class Contracts(unittest.TestCase):
         self.assertEqual(dict(r.network_labels),port.labels(port.namespace));self.assertEqual(r.settings.proxy_cidr,m.CIDR)
     def test_ownership_projection_rejects_foreign_duplicate_or_unknown_before_stop(self):
         # Testzweck: Namensfilter allein erlaubt keine fremden Stop-/Löschaktionen.
-        port=m.CombinedPipe(lambda:None,self.plan());good=owned_value(port,'api','a'*64,True)
+        port=m.CombinedPipe(lambda:None,self.plan());port.image_labels={'org.opencontainers.image.revision':m.API_SOURCE,'org.opencontainers.image.title':'Synthetic API'};good=owned_value(port,'api','a'*64,True)
         self.assertEqual(port.validate_owned(good)['id'],'a'*64)
-        for change in [dict(labels={}),dict(image='sha256:'+'f'*64),dict(name='/foreign'),dict(id='short'),dict(running='yes'),dict(exit=True)]:
+        for change in [dict(labels={}),dict(image='sha256:'+'f'*64),dict(name='/foreign'),dict(id='short'),dict(running='yes'),dict(exit=True),dict(labels=port.labels(port.namespace)),dict(labels=dict(good['labels'],extra='FOREIGN'))]:
             with self.subTest(change=change),self.assertRaises(m.old.FixtureFailure):port.validate_owned(dict(good,**change))
     def test_cleanup_unknown_never_retries_or_removes_foreign(self):
         # Testzweck: UNKNOWN kein grüner Abschluss und kein Reparatur-/Adoptionsloop.
