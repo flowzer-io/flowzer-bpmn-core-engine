@@ -56,6 +56,14 @@ jobs:
           python3 -I -B scripts/ci/test_startup_secret_ci.py
           python3 -I -B scripts/ci/run_startup_secret_contracts.py --dotnet "$(command -v dotnet)" --temp-root "$RUNNER_TEMP"
 
+      # Nur reine Feeder-Fakes, keine Container-/API-/PG-Ausführung; alter Startvertrag bleibt separat.
+      - name: Feeder-Fakeverträge prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/ci/test_runtime_smoke_ci.py
+          python3 -I -B scripts/ci/run_runtime_smoke_contracts.py --dotnet "$(command -v dotnet)" --temp-root "$RUNNER_TEMP"
+
       # Kein zusaetzlicher apt-get-Schritt fuer ClearScript/V8 noetig: Microsoft.ClearScript.
       # V8.Native.linux-x64 (siehe src/WebApiEngine.Tests, src/core-engine-tests) verlangt laut
       # readelf -d nur libc.so.6, libdl.so.2, libm.so.6, libpthread.so.0, librt.so.1 und
