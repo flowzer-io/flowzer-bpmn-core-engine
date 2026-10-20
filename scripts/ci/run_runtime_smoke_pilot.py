@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -18,6 +19,55 @@ shared = importlib.util.module_from_spec(spec); spec.loader.exec_module(shared)
 SDK = 'mcr.microsoft.com/dotnet/sdk@sha256:b1ae36d53ae3803280431dc4b67ebdcc29ffb20c09a40748de154b584c05b259'
 ASP = 'mcr.microsoft.com/dotnet/aspnet@sha256:e4b445f93a5deeb6bd7de300febceb8dd7e481ac65ccf1b474eddc3642a3010f'
 PG = 'docker.io/library/postgres@sha256:66aafa11cf15800a3c94763f7e11d1e7b2e37e5e84bc4ce027cb6e1e4bfaf4df'
+class PilotDiagnostics:
+    """Nur feste Codes/Counts; weder Exceptions noch Kindausgaben werden in Berichte übernommen."""
+    PHASES = {'OPENING','TEMP','SOURCE','RESOURCES','DAEMON','OWN_NAMES_INITIAL','ARCHIVE','EXTRACT',
+              'PULL_SDK','PULL_ASP','PULL_PG','BUILD','PINS','IMAGE_INSPECT','IMAGE_BINDING',
+              'PARENT_BINDING','PARENT','OWN_NAMES_FINAL','COMPLETE','WORKSPACE_REMOVE'}
+
+    def __init__(self):
+        self.phase='OPENING';self.failure_phase=None;self.tool=None
+        self.runtime_state='NOT_STARTED';self.own_names='NOT_CHECKED';self.readback_tool=None
+
+    def enter(self, phase):
+        """Phasen sind quellgebundene Konstanten, niemals aus Kind-/Benutzerausgaben abgeleitet."""
+        if phase not in self.PHASES:raise ValueError('DIAGNOSTIC_PHASE')
+        self.phase=phase
+
+    def failed(self, error, *, readback=False):
+        """Primärfehler behalten; ein zweiter Readbackfehler ist gesondert und niemals Cleanup-Erfolg."""
+        tool={'state':'VALIDATION'}
+        if isinstance(error,shared.ToolCleanupUnknown):tool={'state':'CLI_CLEANUP_UNKNOWN'}
+        elif isinstance(error,subprocess.CalledProcessError):
+            tool={'state':'EXIT_NONZERO','exitCode':error.returncode if type(error.returncode) is int else None}
+        elif isinstance(error,subprocess.TimeoutExpired):
+            tool={'state':'TIMEOUT','timeoutSeconds':error.timeout if type(error.timeout) in [int,float] and 0<error.timeout<=600 else None}
+        elif isinstance(error,ValueError) and error.args==('Runtime list exceeded byte limit',):
+            tool={'state':'OUTPUT_LIMIT','limitBytes':65536}
+        elif isinstance(error,OSError):tool={'state':'OS_ERROR','errno':error.errno if type(error.errno) is int else None}
+        if readback:self.readback_tool=tool
+        if self.failure_phase is None:
+            self.failure_phase=self.phase;self.tool=tool
+            if self.phase=='BUILD' and isinstance(error,subprocess.CalledProcessError):
+                self.tool['buildClassification']=classify_build(error.output)
+
+    def snapshot(self):
+        """Unbekannt ist ausdrücklich kein EOF-/Leak-/Native-/Ressourcenabschlussbeleg."""
+        return dict(phase=self.phase,failurePhase=self.failure_phase,tool=self.tool,
+                    runtimeState=self.runtime_state,ownNames=self.own_names,readbackTool=self.readback_tool)
+
+
+def classify_build(output):
+    """Begrenzte Buildausgabe nur auf finite Fehlerkategorien zählen, keine Freitext-Fallbacks."""
+    if not isinstance(output,str) or len(output.encode())>65536:return {'state':'UNKNOWN','counts':{}}
+    patterns={'NUGET_SOURCE':r'\berror NU1301\b','NUGET_AUDIT':r'\berror NU190[34]\b',
+              'COMPILER':r'\berror CS[0-9]{4}\b','SDK':r'\berror NETSDK[0-9]{4}\b',
+              'FILE_COLLISION':r'\bdiffer: byte [0-9]+, line [0-9]+(?:\n|$)'}
+    counts={key:len(re.findall(pattern,output)) for key,pattern in patterns.items()}
+    counts={key:value for key,value in counts.items() if value}
+    return {'state':'MATCHED' if len(counts)==1 else 'AMBIGUOUS' if counts else 'UNKNOWN','counts':counts}
+
+
 def validate_lease(raw, now, environment):
     """Nur Root-Dispatch/Attempt1 auf dem Topic; diese Identitätsbindung ersetzt keine Root-Freigabe."""
     if len(raw.encode()) > 16384: raise ValueError('OPENING')
@@ -85,50 +135,60 @@ def file_digest(path):
     with path.open('rb') as source:return hashlib.file_digest(source,'sha256').hexdigest()
 
 
-def execute(lease, work, docker, now):
+def _execute(lease, work, docker, now, report):
     """Kleine feste Assemblierung; Runtime ausschließlich durch den bestehenden --bound-run-Entrypoint."""
     environment=shared.isolated_environment(work)
     environment['DOCKER_CONFIG']=str(work/'docker')
     base=[str(docker),'--host','unix:///var/run/docker.sock']
-    def command(args,limit=90):
+    def command(args,limit=90,phase=None):
+        if phase:report.enter(phase)
         if int(now())>=lease['expiresUnix']:raise ValueError('LEASE_EXPIRED')
         return shared.run_tool(args,environment,capture=True,merge_stderr=True,timeout=limit)
+    report.enter('SOURCE')
     if command(['git','rev-parse','HEAD']).strip()!=lease['sourceSha'] \
             or command(['git','rev-parse','HEAD^{tree}']).strip()!=lease['sourceTree'] \
             or hashlib.sha256((ROOT/'.github/workflows/ci.yml').read_bytes()).hexdigest()!=lease['workflowSha256']:
         raise ValueError('SOURCE')
-    preflight_resources(work)
-    info=json.loads(command(base+['info','--format','{{json .}}']))
+    report.enter('RESOURCES');preflight_resources(work)
+    info=json.loads(command(base+['info','--format','{{json .}}'],phase='DAEMON'))
     if info['OSType']!='linux' or info['Architecture'] not in ['x86_64','amd64'] or info['NCPU']<2 \
             or info['MemTotal']<2*1024**3 or not info['ID']:raise ValueError('DAEMON')
     prefix='flowzer-smoke-'+lease['nonce']
-    def absent():
+    def absent(phase):
+        report.enter(phase);report.own_names='UNKNOWN'
         # Nur die drei exakten eigenen Namen lesen, auch nach Leaseablauf; niemals neue Writes freigeben.
-        for name in [prefix+'-pg',prefix+'-api']:
-            if shared.run_tool(base+['ps','--all','--filter','name=^/'+name+'$','--format','{{.ID}}'],
+        try:
+            for name in [prefix+'-pg',prefix+'-api']:
+                if shared.run_tool(base+['ps','--all','--filter','name=^/'+name+'$','--format','{{.ID}}'],
+                                   environment,capture=True,merge_stderr=True,timeout=10).strip():
+                    raise ValueError('CONTAINER_REMAINS')
+            if shared.run_tool(base+['volume','ls','--filter','name=^'+prefix+'$','--format','{{.Name}}'],
                                environment,capture=True,merge_stderr=True,timeout=10).strip():
-                raise ValueError('CONTAINER_REMAINS')
-        if shared.run_tool(base+['volume','ls','--filter','name=^'+prefix+'$','--format','{{.Name}}'],
-                           environment,capture=True,merge_stderr=True,timeout=10).strip():
-            raise ValueError('VOLUME_REMAINS')
-    absent()
+                raise ValueError('VOLUME_REMAINS')
+            report.own_names='ABSENT'
+        except Exception as error:
+            report.failed(error,readback=phase=='OWN_NAMES_FINAL');raise
+    absent('OWN_NAMES_INITIAL')
     context=work/'source';context.mkdir()
     archive=work/'source.tar'
-    command(['git','archive','--format=tar','--output',str(archive),lease['sourceSha']])
-    command(['tar','--no-same-owner','--no-same-permissions','-xf',str(archive),'-C',str(context)])
+    command(['git','archive','--format=tar','--output',str(archive),lease['sourceSha']],phase='ARCHIVE')
+    command(['tar','--no-same-owner','--no-same-permissions','-xf',str(archive),'-C',str(context)],phase='EXTRACT')
     # Keine impliziten Registryziele/Tags: ausschließlich drei öffentliche unveränderliche Basisbilder.
-    for image in [SDK,ASP,PG]:command(base+['pull','--platform','linux/amd64',image],120)
+    for image,phase in [(SDK,'PULL_SDK'),(ASP,'PULL_ASP'),(PG,'PULL_PG')]:
+        command(base+['pull','--platform','linux/amd64',image],120,phase=phase)
     imagefile=work/'image-id'
     build=command(base+['build','--platform','linux/amd64','--pull=false','--progress','plain',
         '--build-arg','PILOT_NONCE='+lease['nonce'],'--label','org.opencontainers.image.revision='+lease['sourceSha'],
         '--label','flowzer-smoke.nonce='+lease['nonce'],'--iidfile',str(imagefile),
-        '--file',str(context/'tests/runtime-bootstrap-smoke/Dockerfile.pilot'),str(context)],300)
-    pins=parse_pins(build);image=imagefile.read_text().strip()
+        '--file',str(context/'tests/runtime-bootstrap-smoke/Dockerfile.pilot'),str(context)],300,phase='BUILD')
+    report.enter('PINS');pins=parse_pins(build);image=imagefile.read_text().strip()
     if not re.fullmatch('sha256:[a-f0-9]{64}',image):raise ValueError('IMAGE')
-    items=json.loads(command(base+['image','inspect',image]));item=items[0]
+    items=json.loads(command(base+['image','inspect',image],phase='IMAGE_INSPECT'));item=items[0]
+    report.enter('IMAGE_BINDING')
     if len(items)!=1 or item['Id']!=image or item['Os']!='linux' or item['Architecture']!='amd64' \
             or item['Config']['Labels'].get('org.opencontainers.image.revision')!=lease['sourceSha'] \
             or item['Config']['Labels'].get('flowzer-smoke.nonce')!=lease['nonce']:raise ValueError('IMAGE')
+    report.enter('PARENT_BINDING')
     if int(now())+300>lease['expiresUnix']:raise ValueError('LEASE_TOO_SHORT')
     opening=dict(version=1,owner=lease['owner'],nonce=lease['nonce'],expiresUnix=int(now())+300,
         dockerPath=str(docker),dockerSha256=file_digest(docker),dockerHost='unix:///var/run/docker.sock',daemonId=info['ID'],
@@ -141,13 +201,25 @@ def execute(lease, work, docker, now):
     (work/'artifact-pins.json').write_text(json.dumps(dict(result,apiSHA256=pins['API'],feederSHA256=pins['FEEDER'],
                                                        nativeSHA256=pins['NATIVE']),indent=2)+'\n')
     try:
+        # Schon ein fehlgeschlagener CLIstart kann Dockerwrites angestoßen haben: konservativ unbekannt.
+        report.enter('PARENT');report.runtime_state='MAY_HAVE_STARTED'
         output=command([sys.executable,'-I','-B',str(ROOT/'tests/runtime-bootstrap-smoke/run_smoke.py'),
                         '--bound-run',str(path),hashlib.sha256(raw).hexdigest(),lease['nonce']],420)
         if output!='FLOWZER_SMOKE_PARENT_OK\n':raise ValueError('PARENT_RESULT')
+        report.runtime_state='PARENT_SUCCEEDED'
+    except Exception as error:
+        report.failed(error);raise
     finally:
-        absent()  # Auch bei Exit!=0 nur lesen; niemals fremde/unklare CIDs stoppen oder force-räumen.
-    print(json.dumps(dict(result,result='SYNTHETIC_PILOT_OK',ownNamesAbsent=True)))
-    return 0
+        absent('OWN_NAMES_FINAL')  # Auch bei Exit!=0 nur lesen; niemals fremde/unklare CIDs stoppen oder force-räumen.
+    return result
+
+
+def execute(lease, work, docker, now, report=None):
+    """Diagnose ohne neue Prozesssteuerung; fehlgeschlagene Ausführung bleibt unverändert fehlgeschlagen."""
+    report=report if report is not None else PilotDiagnostics()
+    try:return _execute(lease,work,docker,now,report)
+    except Exception as error:
+        report.failed(error);raise
 
 
 def main():
@@ -157,18 +229,23 @@ def main():
     parser.add_argument('--docker',type=Path,required=True)
     parser.add_argument('--temp-root',type=Path,required=True)
     args=parser.parse_args()
-    work=None;lease=None
+    work=None;lease=None;report=PilotDiagnostics()
     try:
         lease=validate_lease(args.opening,int(time.time()),os.environ)
+        report.enter('TEMP')
         if not args.temp_root.is_absolute() or not args.temp_root.is_dir():raise ValueError('TEMP')
         file_digest(args.docker)
         work=Path(tempfile.mkdtemp(prefix='flowzer-pilot-',dir=args.temp_root))
-        code=execute(lease,work,args.docker,lambda:int(time.time()))
+        result=execute(lease,work,args.docker,lambda:int(time.time()),report)
+        report.enter('WORKSPACE_REMOVE')
         shutil.rmtree(work)  # Ausschließlich nach verifiziert terminalen Tools/Parent und Namensabwesenheit.
-        return code
-    except Exception:
+        report.enter('COMPLETE')
+        print(json.dumps(dict(result,result='SYNTHETIC_PILOT_OK',ownNamesAbsent=True,diagnostic=report.snapshot())))
+        return 0
+    except Exception as error:
+        report.failed(error)
         print(json.dumps(dict(result='PILOT_REJECTED',nonce=lease['nonce'] if lease else None,
-                              work=str(work) if work else None,cleanup='CHECK_REQUIRED')))
+                              work=str(work) if work else None,cleanup='CHECK_REQUIRED',diagnostic=report.snapshot())))
         return 2
 
 

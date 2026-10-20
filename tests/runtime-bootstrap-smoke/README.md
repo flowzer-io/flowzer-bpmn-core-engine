@@ -160,3 +160,43 @@ ist ausschließlich für den später frisch erzeugten exklusiv eigenen APIcontai
 mit privatem PID-Namensraum eng akzeptiert, nicht erledigt und kein stabiler
 Handle. Ohne konkrete Run-Lease keine Ausführung. Dieser Source-Stand ist lokal
 synthetisch zu testen/reviewen, aber weder gepusht noch Hosted-/Runtime-abgenommen.
+
+## Tatsächlicher Hosted-Erstpilot und enge Diagnosekorrektur
+
+Der genau einmal gestartete Hosted-Lauf **39470222794/a1** am Quellstand
+`0a7e103a41284bcad7818b424c695c1e46a40b6e` ist **fehlgeschlagen**. Die beiden
+vorgelagerten Fake-/Startvertragsschritte waren erfolgreich; der Pilot selbst
+meldete nur `PILOT_REJECTED`, Exit2 und `cleanup=CHECK_REQUIRED`. Aus dieser
+pauschalen Ausgabe sind Fehlerphase, tatsächliche Compositeimage-/Nativepins,
+Migration20, EOF, Leakprüfung und eigener CID-/Volumeabschluss **nicht belegt**.
+Runner-Postjob-Cleanup ist kein Ersatzbeleg. Kein Retry und keine Demoabnahme.
+
+Der folgende enge Sourcefix ergänzt ausschließlich die Diagnose im vorhandenen
+Träger: feste Phasencodes, numerische Exit-/Timeout-/Ausgabelimitmetadaten,
+`runtimeState=NOT_STARTED|MAY_HAVE_STARTED|PARENT_SUCCEEDED` sowie unabhängig
+gelesenes `ownNames=NOT_CHECKED|ABSENT|UNKNOWN`. Vor dem Parentaufruf bezeichnet
+`NOT_STARTED` ausschließlich den noch nicht aufgerufenen Parent/Fixturepfad,
+nicht die bereits möglichen öffentlichen Pull-/Buildvorgänge. Schon vor dessen
+CLIstart wird konservativ `MAY_HAVE_STARTED` gesetzt. `ABSENT` allein ist weder
+CLIgruppenabschluss noch EOF-/Leak-/fachlicher Erfolg. Ein primärer Fehler bleibt
+bei zusätzlichem Readbackfehler erhalten; unbekannte Ressourcen werden nicht
+adoptiert, gestoppt oder gelöscht. Es gibt keine neue Cleanup-Schreiboperation.
+
+Bereits begrenzt erfasste öffentliche Buildfehler werden nur anhand fester
+Kategorien gezählt (NuGetquelle/-Audit, Compiler, SDK, Dateikollision). Unbekannte,
+mehrdeutige oder übergroße Ausgaben erhalten `UNKNOWN` beziehungsweise `AMBIGUOUS`;
+die Kategorien sind Hinweise, keine Ursachenfeststellung. Keine Rohzeile,
+Exceptionnachricht, komplette Befehlszeile, Umgebung oder Konfiguration wird
+ausgegeben. Die bestehende harte64KiB-Grenze und alle Fristen bleiben unverändert.
+Canary-/Secret-ähnliche Nebeninhalte werden durch synthetische Tests abgesichert.
+SharedHelper, Parent, C#-Feeder, Dockerrecipe und Produkt-/Auth-/Schema bleiben
+bytegleich. Diese lokalen Diagnose-/Regressionstests führen keine Container aus.
+Ein weiterer tatsächlicher Linuxpilot benötigt erneut unabhängigen Sol-Review,
+veröffentlichten exakten Freeze und eine frische koordinierte Run-Lease.
+
+Der finale `SYNTHETIC_PILOT_OK`-Beleg wird erst von `main` **nach** erfolgreicher
+Entfernung des eigenen Arbeitsbereichs ausgegeben. Scheitert diese Entfernung,
+bleiben Exit2 und ausschließlich `PILOT_REJECTED` mit Phase `WORKSPACE_REMOVE`;
+vorheriger Parentabschluss/Namensabwesenheit werden getrennt dokumentiert und
+nicht zu einem erfolgreichen Gesamtabschluss umgedeutet. Ein synthetischer
+Main-Faultfall und ein Execute-Test sichern diese Reihenfolge ab.
