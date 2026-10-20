@@ -41,11 +41,13 @@ class RunDiagnostics:
         if old['cid']!=cid:raise SmokeFailure('OWNERSHIP')
         if verified:old['ownership']='VERIFIED'
 
-    def record_tool(self, code):
+    def record_tool(self, code, operation='OTHER'):
         """Ersten CLIbeleg je Primär-/Cleanuplane fest binden; spätere Fehler überschreiben ihn nie."""
         if type(code) is not int:return
+        if operation not in ['OTHER','INFO','IMAGE_INSPECT','CONTAINER_CREATE','CONTAINER_REMOVE','CONTAINER_STOP',
+                             'CONTAINER_INSPECT','VOLUME_CREATE','VOLUME_INSPECT','VOLUME_REMOVE']:operation='OTHER'
         field='cleanup_tool' if self.phase.startswith('CLEANUP_') else 'tool'
-        if getattr(self,field) is None:setattr(self,field,dict(phase=self.phase,state='EXIT_NONZERO',exitCode=code))
+        if getattr(self,field) is None:setattr(self,field,dict(phase=self.phase,state='EXIT_NONZERO',exitCode=code,operation=operation))
 
     def snapshot(self):
         return dict(phase=self.phase,failurePhase=self.failure_phase,failureCode=self.failure_code,
@@ -101,6 +103,28 @@ def project_fixture_failure(result, secrets):
                 or d['cleanup'] not in ['NotStarted','Complete','Unknown']:raise ValueError('SCHEMA')
         return dict(state='VALIDATED',exitCode=code,diagnostic=d)
     except Exception:return unknown
+
+
+def cli_operation(args):
+    """Endliche Operation-ID aus festen CLIverben, niemals vollständige Argumente ausgeben."""
+    if not args:return 'OTHER'
+    if args[:2]==['container','inspect']:return 'CONTAINER_INSPECT'
+    if args[:2]==['volume','inspect']:return 'VOLUME_INSPECT'
+    if args[:2]==['volume','create']:return 'VOLUME_CREATE'
+    if args[:2]==['volume','rm']:return 'VOLUME_REMOVE'
+    if args[:2]==['image','inspect']:return 'IMAGE_INSPECT'
+    return {'rm':'CONTAINER_REMOVE','stop':'CONTAINER_STOP','create':'CONTAINER_CREATE','info':'INFO'}.get(args[0],'OTHER')
+
+
+def known_absence(result, messages):
+    """Nur Exit1/exakte Meldung und wirklich leere Ausgabe/JSONliste, kein Klammer-/Substringmatcher."""
+    import json
+    if type(result['code']) is not int or result['code']!=1 or not messages:return False
+    try:
+        raw=result['stdout'].decode('utf-8')
+        if raw.strip(' \t\r\n') and json.loads(raw)!=[]:return False
+    except (ValueError,UnicodeError):return False
+    return any(result['stderr'] in [message.encode(),message.encode()+b'\n'] for message in messages)
 
 
 class SmokeRun:
@@ -395,11 +419,12 @@ class DockerPorts:
             while not child.tick():
                 if self.pg is not None and self.pg.process.poll() is None: self.pg.tick(0)
             result = child.result()
+            verify_bytes(result['stdout']+result['stderr'],self.secrets)
             if result['code']:
                 # Nur exakte bekannte Not-found-Texte sind Abwesenheitsbelege; Rechte-/Netzfehler bleiben UNKNOWN.
-                if missing and not result['stdout'].strip(b' \n[]') and result['stderr'].decode().strip() in missing:
+                if known_absence(result,missing):
                     return None
-                self.diagnostic.record_tool(result['code'])
+                self.diagnostic.record_tool(result['code'],cli_operation(args))
                 raise SmokeFailure('DOCKER')
             return result['stdout']
         finally: child.close()
@@ -501,7 +526,12 @@ class DockerPorts:
 
     def inspect(self, cid):
         import json
-        raw = self._run(['container', 'inspect', cid], [f'Error: No such container: {cid}', f'Error: No such object: {cid}'])
+        import re
+        if not isinstance(cid,str) or not re.fullmatch('[a-f0-9]{64}',cid) or cid not in self.expected:
+            raise SmokeFailure('OWNERSHIP')
+        # Docker/Moby reicht API-404 mit kanonischem Daemonpräfix durch; nur exakt dieser eigene volle CID.
+        raw = self._run(['container', 'inspect', cid], [f'Error: No such container: {cid}',
+            f'Error: No such object: {cid}', f'Error response from daemon: No such container: {cid}'])
         if raw is None: return None
         value = json.loads(raw)[0]; config, host = value['Config'], value['HostConfig']
         expected = self.expected[cid]; role = expected['role']

@@ -316,11 +316,12 @@ class ParentProjectionTests(unittest.TestCase):
         _,state=CarrierTests().invoke('parent_valid',diagnostic=True);d=state['diagnostic']
         self.assertEqual(d['parent']['state'],'VALIDATED');self.assertEqual(d['artifacts']['nativeSHA256'],'3'*64)
         self.assertEqual(d['failurePhase'],'PARENT');self.assertEqual(d['ownNames'],'ABSENT')
-        value=self.document();value['diagnostic']['tool']=dict(phase='PG_CREATE',state='EXIT_NONZERO',exitCode=1)
-        value['diagnostic']['cleanupTool']=dict(phase='CLEANUP_INSPECT',state='EXIT_NONZERO',exitCode=2)
+        value=self.document();value['diagnostic']['tool']=dict(phase='PG_CREATE',state='EXIT_NONZERO',exitCode=1,operation='CONTAINER_CREATE')
+        value['diagnostic']['cleanupTool']=dict(phase='CLEANUP_INSPECT',state='EXIT_NONZERO',exitCode=2,operation='CONTAINER_INSPECT')
         projected=r.project_parent_failure(json.dumps(value),'a'*32)
         self.assertEqual(projected['diagnostic']['tool']['exitCode'],1)
         self.assertEqual(projected['diagnostic']['cleanupTool']['exitCode'],2)
+        self.assertEqual(projected['diagnostic']['cleanupTool']['operation'],'CONTAINER_INSPECT')
 
     def test_unknown_ambiguous_truncated_or_canary_parent_output_stays_unknown(self):
         # Testzweck: Keine Freitexte/Secrets, Duplikate, Fremdnonce, falsche Ownership oder fremde CIDs übernehmen.

@@ -262,3 +262,44 @@ REDs sichern nun die Korrektur: erster primärer Toolbeleg und erster Cleanup-
 Toolbeleg tragen jeweils ihre feste Phase getrennt; die erste Cleanupstörung
 wird unmittelbar festgehalten; ohne belegten Volume-Ownership-/Abschluss bleibt
 Cleanup `UNKNOWN`. Die eigentlichen Cleanupaktionen/Guards bleiben unverändert.
+
+## Enger Docker-NotFound-Kompatibilitätsfix
+
+Der dritte getrennte Lauf **39478305682/a1** auf `fd22271` ist **FAILURE**.
+Jetzt ist der Parentfehler konkret `CLEANUP_REMOVE / CLEANUP`, CLIexit1,
+beide CIDkandidaten/Own-Namensreadback und Gesamtcleanup `UNKNOWN`. Es ist kein
+vorheriger fachlicher Parentfehler protokolliert: Aus dem unveränderten Sourcepfad
+folgt als **Inferenz**, dass der feste Feeder-Erfolg/Exit0/EOF-/Canaryguard vor dem
+Cleanup erreicht wurde. Das ist kein direkt emittierter Einzelnachweis und keine
+Gesamt-/Native-/Migration20-/Demoabnahme. Der tatsächliche Fehlertext fehlt.
+
+Die offiziellen Primärquellen zeigen einen bislang nicht erkannten exakten
+CLIvertrag: `container inspect` reicht APIfehler weiter; der Moby-Client setzt
+`Error response from daemon` davor. Siehe
+[DockerCLI](https://raw.githubusercontent.com/docker/cli/v28.5.2/cli/command/container/inspect.go),
+[Inspect-Client](https://raw.githubusercontent.com/moby/moby/v28.5.2/client/container_inspect.go)
+und [APIfehler-Projektion](https://raw.githubusercontent.com/moby/moby/v28.5.2/client/request.go).
+Diese Quellen beweisen nicht die konkret im dritten Hosted-Piloten verwendete
+Docker-Version/Fehlerzeile. Der aktuelle Fix erkennt zusätzlich ausschließlich
+`Error response from daemon: No such container: <exakter eigener voller CID>`.
+Kein Substring-/Wildcard-Matcher, kein fremder CID/Name, keine Permission-/Transport-
+oder Mehrzeilen-/Zusatzfehlertoleranz. Alte exakte Create-Namen-/Volumeverträge
+bleiben erhalten. Abwesenheit verlangt strikt den Integerexit1 und leeren stdout
+oder ein tatsächlich leeres JSONarray mit bloßem JSONwhitespace; beliebige
+Klammerfolgen, Code0/125/bool und beschädigte/canarybelastete Ausgaben sind kein
+Abwesenheitsbeleg. Registrierter eigener voller CID wird vor dem Inspect geprüft.
+
+Die sichere CLI-Operation-ID unterscheidet nun `CONTAINER_REMOVE` vom anschließenden
+`CONTAINER_INSPECT`, getrennt je Primär-/Cleanuplane. Keine Argumente/Rohmeldungen.
+Alle Ressourcen-/Timeout-/Signal-/PID-/Eigentums- und eigentlichen Cleanupaktionen
+sowie C#-/Produkt-/Workflow-/Dockerrecipebytes bleiben unverändert.
+
+Zusätzliche **synthetische echte CLI-Reproduktion**, ausdrücklich kein Runtimepilot:
+Der lokal vorhandene DockerCLI29.8.2 erhielt mit leerer eigener Umgebung/Config
+nur `--host` auf einen eigenen privaten AF_UNIX-HTTPfakesocket. Zwei Requests
+(Ping und fester eigener 404-Testpayload), Exit1, wirklich leeres JSONarray und
+exakter kanonischer daemonpräfigierter NotFoundtext wurden tatsächlich geprüft.
+Kein realer Dockerdaemon, kein Container/Image/Pull, kein Hostport. Eigene CLIgruppen,
+Serverthread, Socket und Arbeitsbereich sind belegbar geschlossen/entfernt.
+Diese Reproduktion beweist den CLIvertrag auf diesem Fake, nicht rückwirkend die
+Fehlerursache oder den Cleanup der drei verbrauchten Hosted-Leases.

@@ -104,9 +104,11 @@ def project_parent_failure(output, nonce):
                 or d['runtimeState']=='NOT_STARTED' and cids:raise ValueError('OWNERSHIP')
         for key in ['tool','cleanupTool']:
             tool=d[key]
-            if tool is not None and (set(tool)!={'phase','state','exitCode'} or tool['phase'] not in phases
+            if tool is not None and (set(tool)!={'phase','state','exitCode','operation'} or tool['phase'] not in phases
                     or tool['state']!='EXIT_NONZERO' or type(tool['exitCode']) is not int
-                    or tool['phase'].startswith('CLEANUP_')!=(key=='cleanupTool')):raise ValueError('TOOL')
+                    or tool['phase'].startswith('CLEANUP_')!=(key=='cleanupTool')
+                    or tool['operation'] not in ['OTHER','INFO','IMAGE_INSPECT','CONTAINER_CREATE','CONTAINER_REMOVE',
+                        'CONTAINER_STOP','CONTAINER_INSPECT','VOLUME_CREATE','VOLUME_INSPECT','VOLUME_REMOVE']):raise ValueError('TOOL')
         fixture=d['fixture']
         if fixture is not None:
             if fixture.get('state')=='UNKNOWN':

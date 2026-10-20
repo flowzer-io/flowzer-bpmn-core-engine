@@ -314,7 +314,35 @@ class AdapterSourceContractTests(unittest.TestCase):
             m.validate_binding(duplicate, hashlib.sha256(duplicate).hexdigest(), PLAN.nonce, 100)
         with self.assertRaises(m.SmokeFailure): m.validate_binding(raw, '0'*64, PLAN.nonce, 100)
 
+    def _verify_missing_protocol(self):
+        # Testzweck: Nur exakter eigener NotFound/Exit1 mit wirklich leerem JSON wird Abwesenheit.
+        port=object.__new__(m.DockerPorts);port.diagnostic=m.RunDiagnostics();port.b=self.binding()
+        port.base=['PUBLIC'];port.env={};port.secrets=[SECRET];port.commands=[]
+        port.clock=Clock();port.cleanup_until=None;port.pg=None
+        cid='4'*64;port.expected={cid:{}}
+        canonical=('Error response from daemon: No such container: '+cid).encode()
+        legacy=('Error: No such container: '+cid).encode()
+        cases=[(1,b'[]\n',canonical+b'\n',True),(1,b' \n[ ]\t',canonical,True),
+               (1,b'',legacy+b'\n',True),(True,b'[]',canonical,False),(1,b'\xc2\xa0',canonical,False),(125,b'[]',legacy,False),(0,b'[]',canonical,False),
+               (1,b'[][[]',legacy,False),(1,b'[{}]',canonical,False),(1,b'null',canonical,False),
+               (1,b'[]',canonical+b'\nEXTRA',False),(1,b'[]',canonical+b'\n\n',False),
+               (1,b'[]',canonical.replace(cid.encode(),b'5'*64),False),
+               (1,b'[]',b'permission denied',False),(1,b'[]',b'Cannot connect to the Docker daemon',False),
+               (1,b'[]',canonical[:-1],False),(1,b'[]',SECRET,False)]
+        for code,out,err,absent in cases:
+            with self.subTest(code=code,absent=absent,out=out):
+                child=mock.Mock();child.tick.return_value=True;child.result.return_value=dict(code=code,stdout=out,stderr=err)
+                with mock.patch.object(m,'AttachedCommand',return_value=child):
+                    if absent:self.assertIsNone(port.inspect(cid))
+                    else:
+                        with self.assertRaises((m.SmokeFailure,KeyError,ValueError,IndexError)):port.inspect(cid)
+        # Auch die sichere CLIklasse muss rm und nachfolgenden inspect-Readback endliche IDs zuordnen.
+        self.assertEqual(m.cli_operation(['rm',cid]),'CONTAINER_REMOVE')
+        self.assertEqual(m.cli_operation(['container','inspect',cid]),'CONTAINER_INSPECT')
+        self.assertEqual(m.cli_operation(['PRIVATE_UNKNOWN',cid]),'OTHER')
+
     def test_real_inspection_projection_uses_only_fake_command_json(self):
+        self._verify_missing_protocol()
         # Testzweck: Nicht nur der Kernfake: der echte Docker-JSONprüfer darf fremde Flags/ENV/Cmd nicht übernehmen.
         port = object.__new__(m.DockerPorts); port.b = self.binding(); port.binding_sha = 'e'*64
         cid = '4'*64
@@ -354,8 +382,8 @@ class AdapterSourceContractTests(unittest.TestCase):
             with self.assertRaises(m.SmokeFailure) as first:port._run(['PUBLIC'])
             d.failed(first.exception);d.enter('CLEANUP_INSPECT')
             with self.assertRaises(m.SmokeFailure):port._run(['PUBLIC'])
-        self.assertEqual(d.snapshot()['tool'],dict(phase='PG_CREATE',state='EXIT_NONZERO',exitCode=1))
-        self.assertEqual(d.snapshot()['cleanupTool'],dict(phase='CLEANUP_INSPECT',state='EXIT_NONZERO',exitCode=2))
+        self.assertEqual(d.snapshot()['tool'],dict(phase='PG_CREATE',state='EXIT_NONZERO',exitCode=1,operation='OTHER'))
+        self.assertEqual(d.snapshot()['cleanupTool'],dict(phase='CLEANUP_INSPECT',state='EXIT_NONZERO',exitCode=2,operation='OTHER'))
 
 
     def test_real_channel_pump_uses_fake_fds_clock_and_selector(self):
