@@ -118,6 +118,22 @@ class ContractTests(unittest.TestCase):
         with self.assertRaises(m.SmokeFailure): self.invoke(p)
         self.assertEqual(p.calls.count('create-pg'), 1)
         self.assertNotIn('create-api', p.calls); self.assertNotIn('volume-remove', p.calls)
+        # Testzweck: Unklarer Createausgang bleibt auch ohne CID konservativ möglicherweise gestartet.
+        d=m.RunDiagnostics();p=Ports();p.unknown=True
+        with self.assertRaises(m.SmokeFailure):m.SmokeRun(p,Clock(),d).run(PLAN,SECRET,b'PUBLIC_INPUT',[SECRET])
+        proof=d.snapshot();self.assertEqual(proof['runtimeState'],'MAY_HAVE_STARTED')
+        self.assertEqual(proof['failurePhase'],'PG_CREATE');self.assertEqual(proof['failureCode'],'OWNERSHIP')
+        self.assertEqual(proof['cleanup'],'UNKNOWN');self.assertEqual(proof['candidates'],[])
+        # Testzweck: Auch partiell angelegte Volumes ohne CID/Ownershipbeleg sind niemals COMPLETE.
+        p=Ports();d=m.RunDiagnostics()
+        def uncertain_volume(name,nonce):
+            p.volume=dict(name=name,nonce=nonce)
+            raise OSError('PUBLIC_UNKNOWN_VOLUME_OUTCOME')
+        p.create_volume=uncertain_volume
+        with self.assertRaises(m.SmokeFailure):m.SmokeRun(p,Clock(),d).run(PLAN,SECRET,b'PUBLIC_INPUT',[SECRET])
+        self.assertIsNotNone(p.volume);self.assertEqual(d.snapshot()['failurePhase'],'VOLUME_CREATE')
+        self.assertEqual(d.snapshot()['runtimeState'],'MAY_HAVE_STARTED');self.assertEqual(d.snapshot()['cleanup'],'UNKNOWN')
+
 
     def test_short_write_never_starts_fixture(self):
         # Testzweck: Vorzeitiges EOF/Shortwrite beendet die PG-Initialisierung, bevor irgendein APIkind startet.
@@ -154,6 +170,38 @@ class ContractTests(unittest.TestCase):
         p = Ports(); p.clean = False
         with self.assertRaises(m.SmokeFailure): self.invoke(p)
         self.assertNotIn('volume-remove', p.calls)
+        # Testzweck: Primärer Fixturefehler und misslungener Cleanup bleiben zwei unabhängige Fakten.
+        p=Ports();p.clean=False;p.result['code']=2;d=m.RunDiagnostics()
+        with self.assertRaises(m.SmokeFailure):m.SmokeRun(p,Clock(),d).run(PLAN,SECRET,b'PUBLIC_INPUT',[SECRET])
+        proof=d.snapshot();self.assertEqual(proof['failurePhase'],'VERIFY_FIXTURE')
+        self.assertEqual(proof['failureCode'],'OUTPUT');self.assertEqual(proof['cleanup'],'UNKNOWN')
+        self.assertTrue(all(c['ownership']=='VERIFIED' for c in proof['candidates']))
+        self.assertNotIn(SECRET.decode(),json.dumps(proof))
+        # Testzweck: Erste API-Cleanupstörung/-Outputquelle nicht durch spätere PG-Removephase ersetzen.
+        for output_fault in [False,True]:
+            p=Ports();d=m.RunDiagnostics();original=p.stop
+            def stop(cid,remaining):
+                if cid=='4'*64:
+                    if output_fault:return dict(original(cid,remaining),code=1)
+                    raise OSError('PUBLIC_API_STOP_FAULT')
+                return original(cid,remaining)
+            p.stop=stop
+            with self.assertRaises(m.SmokeFailure):m.SmokeRun(p,Clock(),d).run(PLAN,SECRET,b'PUBLIC_INPUT',[SECRET])
+            self.assertEqual(d.snapshot()['failurePhase'],'CLEANUP_STOP')
+            self.assertEqual(d.snapshot()['failureCode'],'OUTPUT' if output_fault else 'CLEANUP')
+
+        # Testzweck: C#-Diagnose nur nach Canaryprüfung, unbekannte/duplizierte/abgeschnittene Daten nie ausgeben.
+        f=dict(result='FLOWZER_SMOKE_REJECTED',diagnostic=dict(phase='Cleanup',failurePhase='Migration',failureCode='Output',cleanup='Complete'))
+        result=dict(code=2,stdout=b'',stderr=json.dumps(f).encode(),eof=True,terminal=True,timeout=False)
+        self.assertEqual(m.project_fixture_failure(result,[SECRET])['state'],'VALIDATED')
+        for change in [dict(eof=False),dict(terminal=False),dict(timeout=True)]:
+            self.assertEqual(m.project_fixture_failure(dict(result,**change),[SECRET])['state'],'UNKNOWN')
+        for output in [SECRET,b'Bearer_CANARY',json.dumps(f).encode()[:-2],json.dumps(f).encode()+b'EXTRA',
+                       json.dumps(f).replace('"result":','"result":"FLOWZER_SMOKE_REJECTED","result":').encode()]:
+            if output==SECRET:
+                with self.assertRaises(m.SmokeFailure):m.project_fixture_failure(dict(result,stderr=output),[SECRET])
+            else:self.assertEqual(m.project_fixture_failure(dict(result,stderr=output),[SECRET])['state'],'UNKNOWN')
+
 
     def test_clock_advance_after_start_stops_before_fixture(self):
         # Testzweck: Gesamte Frist statt nur scheinbar erfolgreicher einzelner Adapterrückgaben.
@@ -273,6 +321,7 @@ class AdapterSourceContractTests(unittest.TestCase):
         expected = dict(nonce=PLAN.nonce, role='api', image=PLAN.api_image, network='none', logDriver='none',
             privileged=False, portBindings={}, hostMounts=[], socketVolume='flowzer-smoke-'+PLAN.nonce,
             memory=768*1024**2, pids=128, cpus=1)
+        port.diagnostic=m.RunDiagnostics()
         port.expected = {cid: expected}; port.image_ids = {PLAN.api_image: 'sha256:'+'f'*64}
         port.image_env = {PLAN.api_image: {'DOTNET_VERSION':'10.0.13'}}
         config = dict(User='1654:22000', Env=[k+'='+v for k,v in dict(port.image_env[PLAN.api_image], **port._api_environment()).items()],
@@ -290,8 +339,24 @@ class AdapterSourceContractTests(unittest.TestCase):
             original=value['Config'][key];value['Config'][key]=new
             with self.assertRaises(m.SmokeFailure):port.inspect(cid)
             value['Config'][key]=original
+        port.diagnostic=m.RunDiagnostics()
         value['HostConfig']['Tmpfs']={}
         with self.assertRaises(m.SmokeFailure):port.inspect(cid)
+        self.assertEqual(port.diagnostic.violation,'TMPFS')
+        # Testzweck: Echter _run-Adapter mit zwei Fake-CLIfehlern: primärer Exit1 bleibt neben CleanupExit2 erhalten.
+        port=object.__new__(m.DockerPorts);d=m.RunDiagnostics();port.diagnostic=d
+        port.base=['PUBLIC'];port.env={};port.secrets=[SECRET];port.commands=[]
+        port.clock=Clock();port.cleanup_until=None;port.pg=None
+        child=mock.Mock();child.tick.return_value=True
+        child.result.side_effect=[dict(code=n,stdout=b'',stderr=b'PUBLIC') for n in [1,2]]
+        with mock.patch.object(m,'AttachedCommand',return_value=child):
+            d.enter('PG_CREATE')
+            with self.assertRaises(m.SmokeFailure) as first:port._run(['PUBLIC'])
+            d.failed(first.exception);d.enter('CLEANUP_INSPECT')
+            with self.assertRaises(m.SmokeFailure):port._run(['PUBLIC'])
+        self.assertEqual(d.snapshot()['tool'],dict(phase='PG_CREATE',state='EXIT_NONZERO',exitCode=1))
+        self.assertEqual(d.snapshot()['cleanupTool'],dict(phase='CLEANUP_INSPECT',state='EXIT_NONZERO',exitCode=2))
+
 
     def test_real_channel_pump_uses_fake_fds_clock_and_selector(self):
         # Testzweck: Der wirkliche Reader erkennt einen über zwei Lesezyklen geteilten Sentinel, ohne Prozess/FD.

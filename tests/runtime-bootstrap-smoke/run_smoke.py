@@ -4,6 +4,53 @@ from dataclasses import dataclass
 
 class SmokeFailure(Exception):
     """Nur feste Kategorien, niemals Port-/Secret-/Exceptioninhalte."""
+    def __init__(self, kind):
+        self.kind=kind if kind in RunDiagnostics.CODES else 'UNKNOWN'
+        super().__init__(self.kind)
+
+
+class RunDiagnostics:
+    """Sichere Beobachtung des bestehenden Versuchs; niemals Eigentum oder Cleanup daraus ableiten."""
+    PHASES={'BINDING','PLAN','PREFLIGHT','VOLUME_CREATE','VOLUME_INSPECT','PG_CREATE','PG_INSPECT',
+            'API_CREATE','API_INSPECT','PG_STDIN','FIXTURE','VERIFY_FIXTURE','CLEANUP_INSPECT',
+            'CLEANUP_STOP','CLEANUP_REMOVE','CLEANUP_VOLUME','CLI_FINAL','WORKSPACE_REMOVE'}
+    CODES={'INPUT','RESOURCES','TIMEOUT','OWNERSHIP','OUTPUT','UNKNOWN','CLEANUP','BINDING','SETUP','DOCKER','ONCE'}
+    VIOLATIONS={'ENV','IMAGE','COMMAND','TMPFS','IDENTITY','MOUNTS','ISOLATION','RESOURCES','ROOTFS','CAPABILITIES','NO_NEW_PRIVILEGES'}
+
+    def __init__(self):
+        self.phase='PLAN';self.failure_phase=None;self.failure_code=None
+        self.runtime_state='NOT_STARTED';self.cleanup='NOT_STARTED';self.violation=None
+        self.candidates=[];self.fixture=None;self.tool=None;self.cleanup_tool=None
+
+    def enter(self,phase):
+        if phase not in self.PHASES:raise SmokeFailure('UNKNOWN')
+        self.phase=phase
+
+    def failed(self,error):
+        if self.failure_phase is None:
+            self.failure_phase=self.phase
+            self.failure_code=error.kind if isinstance(error,SmokeFailure) else 'UNKNOWN'
+
+    def candidate(self,cid,role,verified=False):
+        import re
+        if role not in ['pg','api'] or not re.fullmatch('[a-f0-9]{64}',cid):raise SmokeFailure('OWNERSHIP')
+        old=next((c for c in self.candidates if c['role']==role),None)
+        if old is None:
+            if any(c['cid']==cid for c in self.candidates):raise SmokeFailure('OWNERSHIP')
+            old=dict(cid=cid,role=role,ownership='UNKNOWN');self.candidates.append(old)
+        if old['cid']!=cid:raise SmokeFailure('OWNERSHIP')
+        if verified:old['ownership']='VERIFIED'
+
+    def record_tool(self, code):
+        """Ersten CLIbeleg je Primär-/Cleanuplane fest binden; spätere Fehler überschreiben ihn nie."""
+        if type(code) is not int:return
+        field='cleanup_tool' if self.phase.startswith('CLEANUP_') else 'tool'
+        if getattr(self,field) is None:setattr(self,field,dict(phase=self.phase,state='EXIT_NONZERO',exitCode=code))
+
+    def snapshot(self):
+        return dict(phase=self.phase,failurePhase=self.failure_phase,failureCode=self.failure_code,
+                    cleanup=self.cleanup,runtimeState=self.runtime_state,violation=self.violation,
+                    candidates=[dict(c) for c in self.candidates],fixture=self.fixture,tool=self.tool,cleanupTool=self.cleanup_tool)
 
 
 @dataclass(frozen=True)
@@ -32,13 +79,39 @@ def verify_output(result, secrets):
     verify_bytes(result['stdout'] + result['stderr'], secrets)
 
 
+def project_fixture_failure(result, secrets):
+    """Erst vollständige Kanal-/Canaryprüfung, dann ausschließlich feste C#-Enums projizieren."""
+    import json
+    verify_bytes(result['stdout']+result['stderr'],secrets)
+    code=result['code'] if type(result['code']) is int else None
+    unknown=dict(state='UNKNOWN',exitCode=code)
+    def unique(pairs):
+        output={}
+        for key,value in pairs:
+            if key in output:raise ValueError('DUPLICATE')
+            output[key]=value
+        return output
+    try:
+        if result['stdout'] or code is None or not result['eof'] or not result['terminal'] or result['timeout']:raise ValueError('OUTPUT')
+        value=json.loads(result['stderr'].decode('utf-8'),object_pairs_hook=unique)
+        if set(value)!={'result','diagnostic'} or value['result']!='FLOWZER_SMOKE_REJECTED':raise ValueError('SCHEMA')
+        d=value['diagnostic'];phases={'Input','Binding','Provision','Migration','ApiStart','Readiness','Cleanup','Complete'}
+        if set(d)!={'phase','failurePhase','failureCode','cleanup'} or d['phase'] not in phases or d['failurePhase'] not in phases \
+                or d['failureCode'] not in ['Input','Role','Sequence','Output','Readiness','Cleanup'] \
+                or d['cleanup'] not in ['NotStarted','Complete','Unknown']:raise ValueError('SCHEMA')
+        return dict(state='VALIDATED',exitCode=code,diagnostic=d)
+    except Exception:return unknown
+
+
 class SmokeRun:
     """Ein fester Versuch; ausschließlich verifizierte eigene IDs dürfen je gestoppt werden."""
-    def __init__(self, ports, clock):
+    def __init__(self, ports, clock, diagnostic=None):
         self.ports, self.clock, self.used = ports, clock, False
+        self.diagnostic=diagnostic if diagnostic is not None else RunDiagnostics()
 
     def run(self, plan, pg_password, fixture_input, secrets):
         import re
+        d=self.diagnostic;d.enter('PLAN')
         if self.used:
             raise SmokeFailure('ONCE')
         self.used = True
@@ -48,7 +121,7 @@ class SmokeRun:
             raise SmokeFailure('INPUT')
         if not 32 <= len(pg_password) <= 128 or b'\n' in pg_password or not 0 < len(fixture_input) <= 16384:
             raise SmokeFailure('INPUT')
-        resource = self.ports.preflight()
+        d.enter('PREFLIGHT');resource = self.ports.preflight()
         if resource['architecture'] != 'linux/amd64' or resource['cpus'] < 2 or resource['memory'] < 2 * 1024**3 \
                 or resource['disk'] < 4 * 1024**3 or tuple(resource['images']) != (plan.pg_image, plan.api_image):
             raise SmokeFailure('RESOURCES')
@@ -65,7 +138,9 @@ class SmokeRun:
                         privileged=False, portBindings={}, hostMounts=[], socketVolume=volume,
                         memory=(256 if role == 'pg' else 768) * 1024**2, pids=(64 if role == 'pg' else 128), cpus=1)
         try:
+            d.enter('VOLUME_CREATE');d.runtime_state='MAY_HAVE_STARTED';d.cleanup='UNKNOWN'
             self.ports.create_volume(volume, plan.nonce)
+            d.enter('VOLUME_INSPECT')
             if self.ports.inspect_volume(volume) != dict(name=volume, nonce=plan.nonce):
                 unknown = True
                 raise SmokeFailure('OWNERSHIP')
@@ -74,59 +149,69 @@ class SmokeRun:
             for role, image in [('pg', plan.pg_image), ('api', plan.api_image)]:
                 expected = spec(role, image)
                 try:
-                    cid = self.ports.create(expected)
-                    if not isinstance(cid, str) or not re.fullmatch('[a-f0-9]{64}', cid) \
-                            or self.ports.inspect(cid) != expected:
+                    d.enter(role.upper()+'_CREATE');cid = self.ports.create(expected)
+                    if not isinstance(cid, str) or not re.fullmatch('[a-f0-9]{64}', cid):
+                        raise SmokeFailure('OWNERSHIP')
+                    d.candidate(cid,role);d.enter(role.upper()+'_INSPECT')
+                    if self.ports.inspect(cid) != expected:
                         raise SmokeFailure('OWNERSHIP')
                 except Exception:
                     unknown = True
                     raise SmokeFailure('OWNERSHIP') from None
+                d.candidate(cid,role,verified=True)
                 owned.append((cid, expected)); cids[role] = cid
             data = pg_password + b'\n'
+            d.enter('PG_STDIN')
             sent = self.ports.start_pg(cids['pg'], data, remaining())
             if sent['written'] != len(data) or not sent['eof'] or sent['timeout']:
                 raise SmokeFailure('INPUT')
             verify_bytes(sent['stdout'] + sent['stderr'], secrets)
+            d.enter('FIXTURE')
             result = self.ports.run_fixture(cids['api'], fixture_input, remaining())
+            d.enter('VERIFY_FIXTURE')
+            if result['code']!=0:d.fixture=project_fixture_failure(result,secrets)
             verify_output(result, secrets)
             if result['stdout'] != b'FLOWZER_FIXTURE_OK\n' or result['stderr']:
                 raise SmokeFailure('OUTPUT')
             remaining()
-        except SmokeFailure:
-            raise
-        except Exception:
-            raise SmokeFailure('UNKNOWN') from None
+        except SmokeFailure as error:
+            d.failed(error);raise
+        except Exception as error:
+            d.failed(error);raise SmokeFailure('UNKNOWN') from None
         finally:
             clean = not unknown
             bad_output = False
             for cid, expected in reversed(owned):
                 try:
-                    actual = self.ports.inspect(cid)
+                    d.enter('CLEANUP_INSPECT');actual = self.ports.inspect(cid)
                     if actual is None:
                         continue
                     if actual != expected:
-                        clean = False
+                        next(c for c in d.candidates if c['cid']==cid)['ownership']='UNKNOWN'
+                        d.failed(SmokeFailure('CLEANUP'));clean = False
                         continue
-                    stopped = self.ports.stop(cid, 10000)
+                    d.enter('CLEANUP_STOP');stopped = self.ports.stop(cid, 10000)
                     if not stopped['terminal'] or not stopped['eof'] or stopped['timeout']:
-                        clean = False
+                        d.failed(SmokeFailure('CLEANUP'));clean = False
                         continue
                     try:
                         verify_output(stopped, secrets)
-                    except SmokeFailure:
-                        bad_output = True
-                    self.ports.remove(cid)
+                    except SmokeFailure as error:
+                        d.failed(error);bad_output = True
+                    d.enter('CLEANUP_REMOVE');self.ports.remove(cid)
                     if self.ports.inspect(cid) is not None:
-                        clean = False
+                        d.failed(SmokeFailure('CLEANUP'));clean = False
                 except Exception:
-                    clean = False
+                    next(c for c in d.candidates if c['cid']==cid)['ownership']='UNKNOWN'
+                    d.failed(SmokeFailure('CLEANUP'));clean = False
             if clean and volume_owned:
-                self.ports.remove_volume(volume)
+                d.enter('CLEANUP_VOLUME');self.ports.remove_volume(volume)
                 clean = self.ports.inspect_volume(volume) is None
+            d.cleanup='COMPLETE' if clean and volume_owned else 'UNKNOWN'
             if not clean:
-                raise SmokeFailure('CLEANUP') from None
+                error=SmokeFailure('CLEANUP');d.failed(error);raise error from None
             if bad_output:
-                raise SmokeFailure('OUTPUT') from None
+                error=SmokeFailure('OUTPUT');d.failed(error);raise error from None
 
 
 # Ab hier ausschließlich die später separat gebundenen realen Adapter. Beim Import passiert nichts.
@@ -274,12 +359,13 @@ def validate_binding(raw, digest, nonce, now_unix):
 
 class DockerPorts:
     """Fester Linux-/Dockeradapter ohne Pull/Login/Build/Hostmount, nur die gebundene neue Nonce."""
-    def __init__(self, binding, binding_sha, home, secrets):
+    def __init__(self, binding, binding_sha, home, secrets, diagnostic=None):
         import hashlib
         import os
         import sys
         from pathlib import Path
         self.b, self.binding_sha, self.home, self.secrets = binding, binding_sha, home, secrets
+        self.diagnostic=diagnostic if diagnostic is not None else RunDiagnostics()
         self.pg, self.api_result, self.created = None, None, []
         self.expected, self.cleanup_until = {}, None
         self.image_ids, self.image_env, self.commands = {}, {}, []
@@ -313,6 +399,7 @@ class DockerPorts:
                 # Nur exakte bekannte Not-found-Texte sind Abwesenheitsbelege; Rechte-/Netzfehler bleiben UNKNOWN.
                 if missing and not result['stdout'].strip(b' \n[]') and result['stderr'].decode().strip() in missing:
                     return None
+                self.diagnostic.record_tool(result['code'])
                 raise SmokeFailure('DOCKER')
             return result['stdout']
         finally: child.close()
@@ -403,7 +490,14 @@ class DockerPorts:
         if not re.fullmatch('[a-f0-9]{64}', cid) or cid in self.expected:
             raise SmokeFailure('OWNERSHIP')
         self.expected[cid] = dict(spec); self.created.append(cid)
+        self.diagnostic.candidate(cid,spec['role'])
         return cid
+
+    def _violation(self, code):
+        """Nur die feste verletzte Vertragsgruppe, niemals tatsächliche Docker-/ENV-Werte veröffentlichen."""
+        diagnostic=getattr(self,'diagnostic',None)
+        if diagnostic is not None and diagnostic.violation is None and code in RunDiagnostics.VIOLATIONS:diagnostic.violation=code
+        raise SmokeFailure('OWNERSHIP')
 
     def inspect(self, cid):
         import json
@@ -416,18 +510,18 @@ class DockerPorts:
         if role == 'api': expected_environment.update(self._api_environment())
         if environment != expected_environment or len(config['Env']) != len(environment) \
                 or value['Image'] != self.image_ids[expected['image']]:
-            raise SmokeFailure('OWNERSHIP')
+            self._violation('ENV' if environment != expected_environment or len(config['Env']) != len(environment) else 'IMAGE')
         command = (['/app/SmokeFeeder.dll', '--bound-fixture', self.b['nonce'], self.b['apiSha256'], self.b['feederSha256']]
                    if role == 'api' else None)
         if role == 'api' and (config['Entrypoint'] != ['/usr/share/dotnet/dotnet'] or config['Cmd'] != command):
-            raise SmokeFailure('OWNERSHIP')
+            self._violation('COMMAND')
         uid = self.b['pgUid'] if role == 'pg' else self.b['apiUid']
         pg_cmd = ['-c', self._pg_command()]
         expected_tmpfs = ({'/var/lib/postgresql/data': f"rw,noexec,nosuid,size=134217728,uid={uid},gid={self.b['gid']}"}
                           if role == 'pg' else {'/tmp': f"rw,noexec,nosuid,size=67108864,uid={uid},gid={self.b['gid']}"})
         if host['Tmpfs'] != expected_tmpfs or (role == 'pg' and
                 (config['Entrypoint'] != ['/bin/sh'] or config['Cmd'] != pg_cmd)):
-            raise SmokeFailure('OWNERSHIP')
+            self._violation('TMPFS')
         volumes = [m for m in value['Mounts'] if m['Type'] == 'volume']
         if value['Id'] != cid or config['User'] != f"{uid}:{self.b['gid']}" or host.get('Binds') \
                 or len(volumes) != 1 or volumes[0]['Name'] != expected['socketVolume'] \
@@ -438,7 +532,16 @@ class DockerPorts:
                 or host['NanoCpus'] != 1000000000 or host['ReadonlyRootfs'] != (role == 'api') \
                 or host.get('CapAdd') or host['CapDrop'] != ['ALL'] \
                 or not any(x in host['SecurityOpt'] for x in ['no-new-privileges', 'no-new-privileges:true']):
-            raise SmokeFailure('OWNERSHIP')
+            # Nur finite Gruppen klassifizieren, ohne Werte und ohne einen ursprünglichen Guard zu lockern.
+            if value['Id']!=cid or config['User']!=f"{uid}:{self.b['gid']}":code='IDENTITY'
+            elif host.get('Binds') or len(volumes)!=1 or any(m['Type'] not in ['volume','tmpfs'] for m in value['Mounts']):code='MOUNTS'
+            elif volumes[0]['Name']!=expected['socketVolume'] or volumes[0]['Destination']!='/flowzer-socket' or not volumes[0]['RW']:code='MOUNTS'
+            elif host['PidMode'] or host['IpcMode'] not in ['private',''] or host.get('PublishAllPorts'):code='ISOLATION'
+            elif host['Memory']!=expected['memory'] or host['PidsLimit']!=expected['pids'] or host['NanoCpus']!=1000000000:code='RESOURCES'
+            elif host['ReadonlyRootfs']!=(role=='api'):code='ROOTFS'
+            elif host.get('CapAdd') or host['CapDrop']!=['ALL']:code='CAPABILITIES'
+            else:code='NO_NEW_PRIVILEGES'
+            self._violation(code)
         return dict(expected, nonce=config['Labels'].get('flowzer-smoke.nonce'), role=config['Labels'].get('flowzer-smoke.role'),
                     image=config['Image'], network=host['NetworkMode'], logDriver=host['LogConfig']['Type'],
                     privileged=host['Privileged'], portBindings=host['PortBindings'] or {})
@@ -497,6 +600,7 @@ def main(args):
         print('FLOWZER_SMOKE_SOURCE_ONLY')
         return 78
     ports, binding, directory = None, None, None
+    diagnostic=RunDiagnostics();diagnostic.enter('BINDING')
     try:
         path = Path(args[1])
         if not path.is_absolute() or path.stat().st_uid != os.getuid() or path.stat().st_mode & 0o022:
@@ -508,18 +612,22 @@ def main(args):
         payload = json.dumps(dict(version=1, role='fixture', nonce=binding['nonce'], expectedMigration=binding['expectedMigration'],
             values=dict(zip(['adminPassword', 'migrationPassword', 'runtimePassword', 'bffClientSecret', 'directoryClientSecret'], values)))).encode()
         directory = tempfile.mkdtemp(prefix='flowzer-smoke-parent-')
-        ports = DockerPorts(binding, args[2], Path(directory), [x.encode() for x in values])
-        SmokeRun(ports, LiveClock()).run(Plan(binding['nonce'], binding['pgImage'], binding['apiImage']),
+        ports = DockerPorts(binding, args[2], Path(directory), [x.encode() for x in values],diagnostic)
+        SmokeRun(ports, LiveClock(),diagnostic).run(Plan(binding['nonce'], binding['pgImage'], binding['apiImage']),
                                       values[0].encode(), payload, [x.encode() for x in values])
+        diagnostic.enter('CLI_FINAL')
         if not all(command.verified_closed for command in ports.commands): raise SmokeFailure('CLEANUP')
         import shutil
+        diagnostic.enter('WORKSPACE_REMOVE')
         shutil.rmtree(directory)  # Nur nach komplett belegtem eigenem Abschluss, niemals im UNKNOWN-Finally.
         print('FLOWZER_SMOKE_PARENT_OK')
         return 0
-    except BaseException:
+    except BaseException as error:
+        diagnostic.failed(error)
+        if diagnostic.phase in ['CLI_FINAL','WORKSPACE_REMOVE']:diagnostic.cleanup='UNKNOWN'
         # Nur sichere eigene Handles, keine Rohfehler/Umgebung/Pakete. Keine Erfolgsausgabe nach UNKNOWN.
         print(json.dumps(dict(result='REJECTED', nonce=binding['nonce'] if binding else None,
-                              cids=ports.created if ports else [], home=directory, cleanup='CHECK_REQUIRED')))
+                              cids=[c['cid'] for c in diagnostic.candidates], home=directory, cleanup='CHECK_REQUIRED',diagnostic=diagnostic.snapshot())))
         return 2
 
 

@@ -28,6 +28,7 @@ class PilotDiagnostics:
     def __init__(self):
         self.phase='OPENING';self.failure_phase=None;self.tool=None
         self.runtime_state='NOT_STARTED';self.own_names='NOT_CHECKED';self.readback_tool=None
+        self.artifacts=None;self.parent=None
 
     def enter(self, phase):
         """Phasen sind quellgebundene Konstanten, niemals aus Kind-/Benutzerausgaben abgeleitet."""
@@ -51,10 +52,74 @@ class PilotDiagnostics:
             if self.phase=='BUILD' and isinstance(error,subprocess.CalledProcessError):
                 self.tool['buildClassification']=classify_build(error.output)
 
+    def bind_artifacts(self, value):
+        """Nur vollständig bereits validierte technische Pins führen; kein Rohdaemon-/Configinhalt."""
+        lengths={'sourceSha':40,'sourceTree':40,'nonce':32,'inventorySHA256':64,'apiSHA256':64,
+                 'feederSHA256':64,'nativeSHA256':64,'dockerSHA256':64,'daemonIdSHA256':64}
+        if set(value)!=set(lengths)|{'image','runtime','expectedMigration'} \
+                or any(not isinstance(value[k],str) or not re.fullmatch('[a-f0-9]{'+str(n)+'}',value[k]) for k,n in lengths.items()) \
+                or not isinstance(value['image'],str) or not re.fullmatch('sha256:[a-f0-9]{64}',value['image']) \
+                or value['runtime']!='10.0.13' or type(value['expectedMigration']) is not int or value['expectedMigration']!=20:
+            raise ValueError('ARTIFACT_PROVENANCE')
+        self.artifacts=dict(value)
+
     def snapshot(self):
         """Unbekannt ist ausdrücklich kein EOF-/Leak-/Native-/Ressourcenabschlussbeleg."""
         return dict(phase=self.phase,failurePhase=self.failure_phase,tool=self.tool,
-                    runtimeState=self.runtime_state,ownNames=self.own_names,readbackTool=self.readback_tool)
+                    runtimeState=self.runtime_state,ownNames=self.own_names,readbackTool=self.readback_tool,artifacts=self.artifacts,parent=self.parent)
+
+
+def project_parent_failure(output, nonce):
+    """Kinddaten sind niemals Autorisierung: nur genaues Schema/feste Kategorien/maximal zwei eigene Kandidaten."""
+    phases={'BINDING','PLAN','PREFLIGHT','VOLUME_CREATE','VOLUME_INSPECT','PG_CREATE','PG_INSPECT','API_CREATE','API_INSPECT',
+            'PG_STDIN','FIXTURE','VERIFY_FIXTURE','CLEANUP_INSPECT','CLEANUP_STOP','CLEANUP_REMOVE','CLEANUP_VOLUME',
+            'CLI_FINAL','WORKSPACE_REMOVE'}
+    codes={'INPUT','RESOURCES','TIMEOUT','OWNERSHIP','OUTPUT','UNKNOWN','CLEANUP','BINDING','SETUP','DOCKER','ONCE'}
+    violations={'ENV','IMAGE','COMMAND','TMPFS','IDENTITY','MOUNTS','ISOLATION','RESOURCES','ROOTFS','CAPABILITIES','NO_NEW_PRIVILEGES'}
+    def unique(pairs):
+        result={}
+        for key,value in pairs:
+            if key in result:raise ValueError('DUPLICATE')
+            result[key]=value
+        return result
+    try:
+        if not isinstance(output,str) or len(output.encode())>65536:raise ValueError('OUTPUT')
+        value=json.loads(output,object_pairs_hook=unique)
+        if set(value)!={'result','nonce','cids','home','cleanup','diagnostic'} or value['result']!='REJECTED' \
+                or value['nonce']!=nonce or value['cleanup']!='CHECK_REQUIRED':raise ValueError('SCHEMA')
+        cids=value['cids'];d=value['diagnostic']
+        if not isinstance(cids,list) or len(cids)>2 or len(set(cids))!=len(cids) \
+                or any(not isinstance(c,str) or not re.fullmatch('[a-f0-9]{64}',c) for c in cids):raise ValueError('CID')
+        if set(d)!={'phase','failurePhase','failureCode','cleanup','runtimeState','violation','candidates','fixture','tool','cleanupTool'} \
+                or d['phase'] not in phases or d['failurePhase'] not in phases or d['failureCode'] not in codes \
+                or d['cleanup'] not in ['NOT_STARTED','COMPLETE','UNKNOWN'] \
+                or d['runtimeState'] not in ['NOT_STARTED','MAY_HAVE_STARTED'] \
+                or d['violation'] is not None and d['violation'] not in violations:raise ValueError('DIAGNOSTIC')
+        candidates=d['candidates']
+        if not isinstance(candidates,list) or len(candidates)!=len(cids):raise ValueError('CANDIDATES')
+        for c in candidates:
+            if set(c)!={'cid','role','ownership'} or c['cid'] not in cids or c['role'] not in ['pg','api'] \
+                    or c['ownership'] not in ['VERIFIED','UNKNOWN']:raise ValueError('CANDIDATE')
+        if len({c['cid'] for c in candidates})!=len(cids) or len({c['role'] for c in candidates})!=len(cids) \
+                or d['runtimeState']=='NOT_STARTED' and cids:raise ValueError('OWNERSHIP')
+        for key in ['tool','cleanupTool']:
+            tool=d[key]
+            if tool is not None and (set(tool)!={'phase','state','exitCode'} or tool['phase'] not in phases
+                    or tool['state']!='EXIT_NONZERO' or type(tool['exitCode']) is not int
+                    or tool['phase'].startswith('CLEANUP_')!=(key=='cleanupTool')):raise ValueError('TOOL')
+        fixture=d['fixture']
+        if fixture is not None:
+            if fixture.get('state')=='UNKNOWN':
+                if set(fixture)!={'state','exitCode'} or type(fixture['exitCode']) is not int:raise ValueError('FIXTURE')
+            elif fixture.get('state')=='VALIDATED':
+                if set(fixture)!={'state','exitCode','diagnostic'} or type(fixture['exitCode']) is not int:raise ValueError('FIXTURE')
+                f=fixture['diagnostic'];fp={'Input','Binding','Provision','Migration','ApiStart','Readiness','Cleanup','Complete'}
+                if set(f)!={'phase','failurePhase','failureCode','cleanup'} or f['phase'] not in fp or f['failurePhase'] not in fp \
+                        or f['failureCode'] not in ['Input','Role','Sequence','Output','Readiness','Cleanup'] \
+                        or f['cleanup'] not in ['NotStarted','Complete','Unknown']:raise ValueError('FIXTURE')
+            else:raise ValueError('FIXTURE')
+        return {'state':'VALIDATED','diagnostic':d}
+    except Exception:return {'state':'UNKNOWN'}
 
 
 def classify_build(output):
@@ -200,6 +265,8 @@ def _execute(lease, work, docker, now, report):
                 image=image,inventorySHA256=pins['INVENTORY'],runtime='10.0.13',expectedMigration=20,p3Accepted=True)
     (work/'artifact-pins.json').write_text(json.dumps(dict(result,apiSHA256=pins['API'],feederSHA256=pins['FEEDER'],
                                                        nativeSHA256=pins['NATIVE']),indent=2)+'\n')
+    report.bind_artifacts(dict({k:v for k,v in result.items() if k!='p3Accepted'},apiSHA256=pins['API'],feederSHA256=pins['FEEDER'],nativeSHA256=pins['NATIVE'],
+        dockerSHA256=opening['dockerSha256'],daemonIdSHA256=hashlib.sha256(info['ID'].encode()).hexdigest()))
     try:
         # Schon ein fehlgeschlagener CLIstart kann Dockerwrites angestoßen haben: konservativ unbekannt.
         report.enter('PARENT');report.runtime_state='MAY_HAVE_STARTED'
@@ -208,6 +275,7 @@ def _execute(lease, work, docker, now, report):
         if output!='FLOWZER_SMOKE_PARENT_OK\n':raise ValueError('PARENT_RESULT')
         report.runtime_state='PARENT_SUCCEEDED'
     except Exception as error:
+        if isinstance(error,subprocess.CalledProcessError):report.parent=project_parent_failure(error.output,lease['nonce'])
         report.failed(error);raise
     finally:
         absent('OWN_NAMES_FINAL')  # Auch bei Exit!=0 nur lesen; niemals fremde/unklare CIDs stoppen oder force-räumen.

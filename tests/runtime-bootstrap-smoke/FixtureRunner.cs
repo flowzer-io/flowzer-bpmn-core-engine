@@ -5,6 +5,27 @@ internal sealed class SmokeFailure(Failure kind) : Exception("FLOWZER_SMOKE_" + 
 {
     internal Failure Kind { get; } = kind;
 }
+internal enum FixturePhase { Input, Binding, Provision, Migration, ApiStart, Readiness, Cleanup, Complete }
+internal enum FixtureCleanup { NotStarted, Complete, Unknown }
+/// <summary>Nur feste Phasen/Enums beobachten; Fach-/Signal-/Timeoutregeln bleiben unverändert.</summary>
+internal sealed class FixtureDiagnostics
+{
+    private FixturePhase phase = FixturePhase.Input;
+    private FixturePhase? failurePhase;
+    private Failure? failureCode;
+    internal FixtureCleanup Cleanup { get; set; } = FixtureCleanup.NotStarted;
+    internal void Enter(FixturePhase value) => phase = value;
+    internal void Record(Exception error)
+    {
+        if (failurePhase is not null) return;
+        failurePhase = phase;
+        failureCode = error is SmokeFailure failure && Enum.IsDefined(failure.Kind) ? failure.Kind : Failure.Sequence;
+    }
+    internal object Snapshot() => new {
+        phase = phase.ToString(), failurePhase = failurePhase?.ToString(),
+        failureCode = failureCode?.ToString(), cleanup = Cleanup.ToString()
+    };
+}
 internal interface IClock { long Milliseconds { get; } }
 internal readonly record struct InputPart(byte[] Data, bool Eof = false, bool TimedOut = false);
 /// <summary>Der spätere Adapter muss jede einzelne Leseoperation innerhalb remainingMs beenden.</summary>
@@ -34,9 +55,10 @@ internal interface IFixturePorts
 }
 
 /// <summary>Feste rollengetrennte Sequenz; jeder weitere Durchlauf benötigt einen neuen Runner.</summary>
-internal sealed class FixtureRunner(IFixturePorts ports, IClock clock)
+internal sealed class FixtureRunner(IFixturePorts ports, IClock clock, FixtureDiagnostics? diagnostic = null)
 {
     private bool used;
+    private readonly FixtureDiagnostics diagnostic = diagnostic ?? new();
     internal async Task RunAsync(FixturePacket packet)
     {
         if (used) throw new SmokeFailure(Failure.Sequence);
@@ -51,15 +73,19 @@ internal sealed class FixtureRunner(IFixturePorts ports, IClock clock)
         try
         {
             _ = Remaining();
+            diagnostic.Enter(FixturePhase.Provision);
             var role = await ports.ProvisionAsync(packet);
             if (role.Admin != "fixture_owner" || role.Migrator != "fz_migrator" || role.Runtime != "fz_runtime"
                 || role.RuntimeRights != (Rights.Connect | Rights.Read | Rights.Write)
                 || role.MigratorRights != (Rights.Connect | Rights.Read | Rights.Write | Rights.Ddl))
                 throw new SmokeFailure(Failure.Role);
+            diagnostic.Enter(FixturePhase.Migration);
             requested = 1;
             OutputGuard.Verify(await ports.MigrateAsync(Input(packet, false), Remaining()), packet);
+            diagnostic.Enter(FixturePhase.ApiStart);
             requested = 2; // Vor dem Aufruf: auch ein partiell gestartetes Kind gehört zum Cleanup.
             await ports.StartApiAsync(Input(packet, true), Remaining());
+            diagnostic.Enter(FixturePhase.Readiness);
             var ready = await ports.ObserveAsync(Remaining());
             if (ready.Provider != "PostgreSQL (schema flowzer)" || ready.State != "UpToDate" || ready.Pending != 0
                 || ready.Migration != packet.ExpectedMigration || ready.ExpressionEngine != "Feel"
@@ -67,18 +93,20 @@ internal sealed class FixtureRunner(IFixturePorts ports, IClock clock)
                 throw new SmokeFailure(Failure.Readiness);
             _ = Remaining();
         }
-        catch (SmokeFailure) { throw; }
-        catch { throw new SmokeFailure(Failure.Sequence); }
+        catch (SmokeFailure error) { diagnostic.Record(error); throw; }
+        catch (Exception error) { diagnostic.Record(error); throw new SmokeFailure(Failure.Sequence); }
         finally
         {
             // Cleanup hat eine eigene feste Frist, auch wenn die Fachfrist bereits verstrichen ist.
+            diagnostic.Enter(FixturePhase.Cleanup); diagnostic.Cleanup = FixtureCleanup.Unknown;
             try
             {
                 var proof = await ports.FinishAsync(10000);
                 if (!proof.Empty || proof.Children != requested) throw new SmokeFailure(Failure.Cleanup);
                 OutputGuard.Verify(proof.ApiOutput, packet);
+                diagnostic.Cleanup = FixtureCleanup.Complete;
             }
-            catch { throw new SmokeFailure(Failure.Cleanup); }
+            catch (Exception error) { diagnostic.Record(error); throw new SmokeFailure(Failure.Cleanup); }
         }
     }
     internal static string Connection(string role, string secret) => new Npgsql.NpgsqlConnectionStringBuilder {

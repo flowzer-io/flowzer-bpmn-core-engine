@@ -18,17 +18,27 @@ internal static class Program
             Console.Error.WriteLine("FLOWZER_SMOKE_SOURCE_ONLY");
             return 78;
         }
+        var diagnostic = new FixtureDiagnostics();
         try
         {
             var clock = new LiveClock();
             var packet = await FixtureInput.ReadAsync(new StdinInput(), clock);
             if (packet.Nonce != args[1]) throw new SmokeFailure(Failure.Input);
-            await new FixtureRunner(new LiveFixturePorts(packet, args[2], args[3]), clock).RunAsync(packet);
+            diagnostic.Enter(FixturePhase.Binding);
+            await new FixtureRunner(new LiveFixturePorts(packet, args[2], args[3]), clock, diagnostic).RunAsync(packet);
+            diagnostic.Enter(FixturePhase.Complete);
             Console.WriteLine("FLOWZER_FIXTURE_OK");
             return 0;
         }
-        catch { Console.Error.WriteLine("FLOWZER_SMOKE_REJECTED"); return 2; }
+        catch (Exception error)
+        {
+            diagnostic.Record(error); Console.Error.WriteLine(Rejection(diagnostic)); return 2;
+        }
     }
+    /// <summary>Wertfreie endliche Fehlerprojektion statt Exception-/Paket-/Prozessausgaben.</summary>
+    internal static string Rejection(FixtureDiagnostics diagnostic) => System.Text.Json.JsonSerializer.Serialize(new {
+        result = "FLOWZER_SMOKE_REJECTED", diagnostic = diagnostic.Snapshot()
+    });
 }
 
 /// <summary>Begrenzter Paketkern; der Leserrand erhält eine explizite verbleibende Frist.</summary>

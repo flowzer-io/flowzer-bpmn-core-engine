@@ -118,7 +118,9 @@ class CarrierTests(unittest.TestCase):
             if '--bound-run' in command:
                 state['parentInvoked']=True
                 state['binding']=json.loads(Path(command[command.index('--bound-run')+1]).read_text())
-                if failure in ['parent','parent_readback']:raise subprocess.CalledProcessError(2,command,output='PRIVATE_SYNTHETIC')
+                if failure in ['parent','parent_readback','parent_valid']:
+                    output=json.dumps(ParentProjectionTests.document()) if failure=='parent_valid' else 'PRIVATE_SYNTHETIC'
+                    raise subprocess.CalledProcessError(2,command,output=output)
                 if failure=='cli_unknown':raise r.shared.ToolCleanupUnknown(123456)
                 return 'FLOWZER_SMOKE_PARENT_OK\n'
             if 'ps' in command or 'volume' in command:
@@ -293,6 +295,48 @@ class DiagnosticTests(unittest.TestCase):
             self.assertNotIn('PRIVATE_SYNTHETIC',output.getvalue())
             d=json.loads(output.getvalue())['diagnostic']
             self.assertEqual(d['failurePhase'],'BUILD');self.assertEqual(d['runtimeState'],'NOT_STARTED')
+
+class ParentProjectionTests(unittest.TestCase):
+    @staticmethod
+    def document():
+        return dict(result='REJECTED',nonce='a'*32,cids=['3'*64],home='/PUBLIC/parent',cleanup='CHECK_REQUIRED',
+                    diagnostic=dict(phase='CLEANUP_INSPECT',failurePhase='PG_INSPECT',failureCode='OWNERSHIP',
+                        cleanup='UNKNOWN',runtimeState='MAY_HAVE_STARTED',violation='TMPFS',
+                        candidates=[dict(cid='3'*64,role='pg',ownership='UNKNOWN')],fixture=None,tool=None,cleanupTool=None))
+
+    def test_safe_parent_failure_projection_and_provenance(self):
+        # Testzweck: Zuvor verworfene sichere Kindphase/CIDdaten nur nach vollständiger strenger Prüfung projizieren.
+        r=runner();value=self.document();p=r.project_parent_failure(json.dumps(value),'a'*32)
+        self.assertEqual(p['state'],'VALIDATED');self.assertEqual(p['diagnostic']['failurePhase'],'PG_INSPECT')
+        self.assertNotIn('home',p);self.assertEqual(p['diagnostic']['candidates'][0]['ownership'],'UNKNOWN')
+        d=r.PilotDiagnostics();d.bind_artifacts(dict(sourceSha='b'*40,sourceTree='c'*40,nonce='a'*32,
+            image='sha256:'+'5'*64,inventorySHA256='4'*64,apiSHA256='1'*64,feederSHA256='2'*64,
+            nativeSHA256='3'*64,dockerSHA256='6'*64,daemonIdSHA256='7'*64,runtime='10.0.13',expectedMigration=20))
+        self.assertEqual(d.snapshot()['artifacts']['nativeSHA256'],'3'*64)
+        _,state=CarrierTests().invoke('parent_valid',diagnostic=True);d=state['diagnostic']
+        self.assertEqual(d['parent']['state'],'VALIDATED');self.assertEqual(d['artifacts']['nativeSHA256'],'3'*64)
+        self.assertEqual(d['failurePhase'],'PARENT');self.assertEqual(d['ownNames'],'ABSENT')
+        value=self.document();value['diagnostic']['tool']=dict(phase='PG_CREATE',state='EXIT_NONZERO',exitCode=1)
+        value['diagnostic']['cleanupTool']=dict(phase='CLEANUP_INSPECT',state='EXIT_NONZERO',exitCode=2)
+        projected=r.project_parent_failure(json.dumps(value),'a'*32)
+        self.assertEqual(projected['diagnostic']['tool']['exitCode'],1)
+        self.assertEqual(projected['diagnostic']['cleanupTool']['exitCode'],2)
+
+    def test_unknown_ambiguous_truncated_or_canary_parent_output_stays_unknown(self):
+        # Testzweck: Keine Freitexte/Secrets, Duplikate, Fremdnonce, falsche Ownership oder fremde CIDs übernehmen.
+        r=runner();canary='Password=DO_NOT_PRINT;Bearer_CANARY'
+        value=self.document()
+        bad=[canary,json.dumps(value)[:-2],json.dumps(value)+'\nEXTRA',json.dumps(value).replace('"result":','"result":"REJECTED","result":',1),'x'*65537]
+        for change in [dict(nonce='b'*32),dict(cids=['3'*64,'4'*64,'5'*64]),dict(extra=canary)]:
+            bad.append(json.dumps(dict(value,**change)))
+        for change in [dict(failureCode=canary),dict(violation=canary),dict(candidates=[dict(cid=canary,role='pg',ownership='VERIFIED')]),dict(runtimeState='NOT_STARTED')]:
+            bad.append(json.dumps(dict(value,diagnostic=dict(value['diagnostic'],**change))))
+        for raw in bad:self.assertEqual(r.project_parent_failure(raw,'a'*32),{'state':'UNKNOWN'})
+        value['home']=canary
+        self.assertNotIn(canary,json.dumps(r.project_parent_failure(json.dumps(value),'a'*32)))
+        d=r.PilotDiagnostics()
+        with self.assertRaises(ValueError):d.bind_artifacts({'nativeSHA256':canary})
+        self.assertIsNone(d.snapshot()['artifacts'])
 
 class WorkflowTests(unittest.TestCase):
     def test_closed_dispatch_only_carrier_in_existing_job_and_mock_tests_always(self):

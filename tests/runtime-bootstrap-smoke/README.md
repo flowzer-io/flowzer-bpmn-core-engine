@@ -200,3 +200,65 @@ bleiben Exit2 und ausschließlich `PILOT_REJECTED` mit Phase `WORKSPACE_REMOVE`;
 vorheriger Parentabschluss/Namensabwesenheit werden getrennt dokumentiert und
 nicht zu einem erfolgreichen Gesamtabschluss umgedeutet. Ein synthetischer
 Main-Faultfall und ein Execute-Test sichern diese Reihenfolge ab.
+
+## Zweiter getrennter Hosted-Pilot und Parent-/Feederdiagnose
+
+Der neue, separat koordinierte einmalige Lauf **39473467380/a1** auf
+`df200e0077c86208436e7aaceefd470c63aabb03` ist ebenfalls **FAILURE**. Der äußere
+Träger belegt jetzt `failurePhase=PARENT`, Kind-Exit2 und konservativ
+`MAY_HAVE_STARTED`. Der abschließende eigene Namensreadback blieb `UNKNOWN`
+(`VALIDATION`), damit ist auch der Cleanup **nicht** bestätigt. Eine konkrete
+Kindfehlerursache, tatsächliche Artefaktpins, Native-/Migration20-/EOF-/Leak-
+Abnahmen sind aus diesem Lauf weiterhin nicht veröffentlicht/belegt. Beide
+alten Nonces/Leases sind verbraucht; kein Retry oder Zugriff auf alte Runner.
+
+Der folgende lokale **Acht-Pfad-Diagnoseschnitt** ändert keine Produkt-, Auth-,
+Signal-/PID-, Rechte-, Timeout-, Ressourcen- oder Cleanupregel und senkt keinen
+Erfolgs-/Leakguard ab. Der Python-Parent beobachtet feste vorhandene Schritte
+(Preflight, Volume, beide Create-/Inspectränder, PG-stdin, Feeder und Cleanup)
+sowie ausschließlich bestehende `SmokeFailure`-Kategorien. Vor **jedem** möglichen
+Volume-/Container-/Startwrite steht konservativ `MAY_HAVE_STARTED`: Auch ein
+unklarer Createausgang ohne zurückgelieferten CID wird niemals `NOT_STARTED`.
+Primärfehler und Cleanupzustand bleiben getrennt. Inspectabweichungen nennen nur
+eine endliche Vertragsgruppen-ID, niemals Istwerte aus Docker-/ENV-/Configdaten.
+Maximal zwei syntaktisch geprüfte CIDkandidaten sind an die festen Rollen `pg`
+und `api` gebunden; `VERIFIED` beschreibt eine belegte Inspectprüfung, nicht
+fortbestehende Existenz oder eine spätere Cleanupberechtigung. Bei erneut unklarer
+Inspectprüfung wird der Kandidat wieder `UNKNOWN`. Kein Adoptieren/Force-Cleanup.
+
+Der C#-Feeder projiziert ausschließlich vorhandene Failure-Enums und feste
+Phasen (`Input`, `Binding`, `Provision`, `Migration`, `ApiStart`, `Readiness`,
+`Cleanup`) sowie einen getrennten Cleanupzustand. Eine zusätzliche Cleanupstörung
+überschreibt die Diagnose des Primärfehlers nicht; die bisherigen Exception-/Exit-
+und Erfolgsbedingungen bleiben erhalten. Es gibt keine Roh-Exceptiontexte oder
+Paket-/Prozess-/Providerinhalte. Der Parent prüft zuerst vollständige begrenzte
+Kanäle und alle Klartext-/Base64-/Doppelbase64-Canaries; fehlendes EOF/Terminal,
+Timeout, mehrdeutiges/abgeschnittenes JSON oder unbekannte Kategorien erlauben
+keine validierte Fehlerprojektion. Ein projizierter Fehler bleibt ein Fehler.
+
+Der äußere Träger übernimmt ausschließlich die strikte endliche Parentprojektion
+mit passender eigener Nonce, festen Rollen und maximal zwei CIDkandidaten.
+Unbekannte/mehrdeutige Formen bleiben `UNKNOWN`. Schon vollständig geprüfte
+Image-/API-/Feeder-/Native-/Inventar-/Dockerbinarypins werden auch im Fehlerfall
+als formatgebundene Provenienz verfügbar; die Daemonidentität wird nur gehasht
+geführt. Keine Rohconfigs/ENV/Logs/Befehle. Diese Pins belegen Assemblierung,
+nicht tatsächliche Nativeausführung oder fachlichen Prozessfortschritt.
+
+Die bestehenden **19 Python-Parent-IDs und 15 C#-Vertrags-IDs** bleiben erhalten;
+neue Negativ-/Canary-/Primärfehler-/Cleanupfälle erweitern ihre Assertions.
+Die C#-Verträge werden tatsächlich mit vorhandenem SDK10.0.100 aus
+`/usr/local/share/dotnet` im eigenen isolierten Artefakt-/Paketbereich ausgeführt.
+Die zunächst irrtümliche SDK10.0.401-Auswahl endete vor Build mit Exit155 und ist
+**kein** fachlicher RED. Der folgende echte RED mit kompatiblem SDK fehlte an den
+noch nicht implementierten Diagnosetypen, danach sind neue Builds/Verträge separat
+zu belegen. Keine Installation, global.json-/RollForward- oder Systemänderung.
+Quellreview/Veröffentlichung und ein weiterer tatsächlicher Linuxpilot benötigen
+jeweils neue konkrete Freigaben. Der frühere numerische C#-PID-P3 bleibt offen.
+
+Die unabhängige erste Acht-Pfad-Sol-Prüfung fand drei reine Diagnose-P2:
+überschriebene CLIexitmetadaten, verspätet festgehaltene Cleanupfehlerphase und
+ein fälschliches `COMPLETE` nach unklarem Volume-Create. Drei echte Python-Fake-
+REDs sichern nun die Korrektur: erster primärer Toolbeleg und erster Cleanup-
+Toolbeleg tragen jeweils ihre feste Phase getrennt; die erste Cleanupstörung
+wird unmittelbar festgehalten; ohne belegten Volume-Ownership-/Abschluss bleibt
+Cleanup `UNKNOWN`. Die eigentlichen Cleanupaktionen/Guards bleiben unverändert.

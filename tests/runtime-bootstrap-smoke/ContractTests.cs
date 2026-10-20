@@ -85,12 +85,21 @@ internal static class ContractTests
         });
         // Testzweck: Reihenfolge und genau ein Start pro Runner; kein automatischer Wiederanlauf.
         await Case("sequence-once", async () => {
-            var ports = new Ports(); var runner = new FixtureRunner(ports, new Clock());
+            var ports = new Ports(); var diagnostic = new FixtureDiagnostics();
+            var runner = new FixtureRunner(ports, new Clock(), diagnostic);
             await runner.RunAsync(await Packet());
             Check(ports.Calls.SequenceEqual(new[] { "roles", "migrate", "api", "observe", "finish" }));
             await Reject(Failure.Sequence, () => runner.RunAsync(awaitPacket()));
             FixturePacket awaitPacket() => Packet().GetAwaiter().GetResult();
             Check(ports.Calls.Count == 5);
+            // Testzweck: Sichere Diagnose enthält nur feste Phasen/Enums, nie fremde Exception-/Sentineltexte.
+            var failed = new FixtureDiagnostics(); failed.Enter(FixturePhase.Migration);
+            failed.Record(new InvalidOperationException(PublicSentinels[0]));
+            var output = Program.Rejection(failed);
+            Check(!output.Contains(PublicSentinels[0]));
+            using var report = JsonDocument.Parse(output);
+            Check(report.RootElement.GetProperty("diagnostic").GetProperty("failurePhase").GetString() == "Migration");
+            Check(report.RootElement.GetProperty("diagnostic").GetProperty("failureCode").GetString() == "Sequence");
         });
         // Testzweck: Gruppenrollen dürfen nicht zusammenfallen oder Runtime-/Migratorrechte ausweiten.
         await Case("roles-least-privilege", async () => {
@@ -106,7 +115,11 @@ internal static class ContractTests
         await Case("migration-failure", async () => {
             foreach (var result in new[] { new ChildResult(1, [], []), new ChildResult(0, [], [], TimedOut: true) }) {
                 var ports = new Ports { Migration = result, Cleanup = new(true, 1, new(0, [], [])) };
-                await Reject(Failure.Output, async () => await new FixtureRunner(ports, new Clock()).RunAsync(await Packet()));
+                var diagnostic = new FixtureDiagnostics();
+                await Reject(Failure.Output, async () => await new FixtureRunner(ports, new Clock(), diagnostic).RunAsync(await Packet()));
+                using var proof = JsonDocument.Parse(Program.Rejection(diagnostic));
+                Check(proof.RootElement.GetProperty("diagnostic").GetProperty("failurePhase").GetString() == "Migration");
+                Check(proof.RootElement.GetProperty("diagnostic").GetProperty("cleanup").GetString() == "Complete");
                 Check(!ports.Calls.Contains("api") && ports.Calls.Last() == "finish");
             }
         });
@@ -158,6 +171,16 @@ internal static class ContractTests
             var ports = new Ports { ThrowOnStart = true };
             await Reject(Failure.Sequence, async () => await new FixtureRunner(ports, new Clock()).RunAsync(await Packet()));
             Check(ports.Calls.Last() == "finish");
+            // Testzweck: Primärer Fehler bleibt sichtbar, auch wenn der unabhängige Cleanup ebenfalls scheitert.
+            var diagnostic = new FixtureDiagnostics();
+            var twoFaults = new Ports { ThrowOnStart = true, Cleanup = new(false, 2, new(0, [], [])) };
+            await Reject(Failure.Cleanup, async () => await new FixtureRunner(twoFaults, new Clock(), diagnostic).RunAsync(await Packet()));
+            using var proof = JsonDocument.Parse(Program.Rejection(diagnostic));
+            var report = proof.RootElement.GetProperty("diagnostic");
+            Check(report.GetProperty("failurePhase").GetString() == "ApiStart"
+                && report.GetProperty("failureCode").GetString() == "Sequence"
+                && report.GetProperty("cleanup").GetString() == "Unknown");
+            Check(!Program.Rejection(diagnostic).Contains(PublicSentinels[0]));
         });
         // Testzweck: Der normale Einstieg ist bewusst noch geschlossen; keine Fake-Runtimeabnahme.
         await Case("entrypoint-closed", () => {
