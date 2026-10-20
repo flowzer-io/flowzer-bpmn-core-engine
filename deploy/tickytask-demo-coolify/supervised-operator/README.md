@@ -3,8 +3,9 @@
 **Sourcearbeit, keine Ausführungserlaubnis.** Eigener Cool3-Demokontext, keine
 Production. Implementiert sind derzeit der begrenzte lokale Pipe-Transportkern
 und die einmalige Initial-/Restart-Sequenz mit injizierten Ports. Hinzu kommen
-die reinen SQL-/Readinessprotokolle weiter unten. Vollständige SSH-/Docker-
-Zielprüfung und tatsächliche PGinit-/SQL-/Readiness-I/Oadapter sind **noch nicht implementiert**.
+die reinen SQL-/Readinessprotokolle weiter unten. Der konkrete initiale PG-/SSH-/Dockeradapter ist jetzt als Source vorhanden,
+aber noch nicht auf Linux qualifiziert. Vollständige Host-/Imageattestierung,
+Restart-, Rollen-/Migrations-/API-I/Oadapter bleiben **noch offen**.
 Die Argumentbuilder sind nur Kanalfragmente ohne vollständige Auth-/Mount-/
 Netz-/Ressourcenbindung und dürfen nicht als Betriebsstart benutzt werden.
 Die vorherige Komposition `dae1b4d` bleibt ein eigener geprüfter
@@ -120,3 +121,25 @@ Diese Module sind reine Protokollbausteine, weiterhin kein fertiger Installer.
 Persönliche Read-Probes und Root-Permits gehören **nicht** in einen öffentlichen
 Commit. Der generische Operator kennt weder persönliche Maschinenpfade noch
 private Permit-/Hostbindungen.
+
+## Konkreter initialer PostgreSQLadapter (noch nicht runtimequalifiziert)
+
+`manual_pg_adapter.py` setzt den initialen Transport um: Pflichtbindungen ohne
+persönliche Defaults, frischer Präfix-/Imagecheck, gelabelte neue Volumes mit
+Readback vor Chown, eigene begrenzte Chown-/initdb-Container, SCRAM am Unixsocket
+ohne TCP, PG-CID-/Mount-/Ownerreadback, begrenztes read-only pg_isready-Polling
+und der oben gebundene psql-STDIN-Stream. Jeder PGimage-Run bindet dessen
+deklarierten Datenpfad ausdrücklich, damit keine anonymen Datenträger entstehen.
+Die optionale Keyringvorbereitung entfällt im Nur-PG-Test.
+
+Jeder äußere Port braucht weiterhin einen Rootguard mit tatsächlichen
+Hostkey-/Image-/UID-/Owner-/Fristbindungen; eine Dataclass erteilt keine Rechte.
+Der Adapter besitzt weder Secretresolver noch Restart, automatische Reparatur,
+Stop/Löschroutine oder öffentlichen Execute-Endpunkt. Unklarer Ausgang sperrt
+den Versuch; nur eigene RAM-Puffer werden geleert.
+
+Die [isolierte Nur-PG-Qualifikation](../../../tests/manual-postgres-channel/README.md)
+prüft später mit synthetischen Passwörtern genau diese Source auf Linux. Import
+und normaler CLIaufruf sind inert. Reine Tests/Fake-Docker-Formatter sind noch
+kein bestandener PG-/SSH-/Installerbeweis. Private Probes/Permits bleiben außerhalb
+eines öffentlichen Commits.

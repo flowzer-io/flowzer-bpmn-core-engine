@@ -31,7 +31,7 @@ def psql_initial_arguments() -> list[str]:
 
 
 def initial_psql_payload(*, admin: str, migration: str, runtime: str, sql01: bytes, sql02: bytes) -> bytearray:
-    """Originale reviewte Rollen-/ACLskripte inline, kein persistierter Include.
+    r"""Originale reviewte Rollen-/ACLskripte inline, kein persistierter Include.
 
     Passwortwerte sind ausschließlich quotierte SQLdaten bei explizitem
     standard_conforming_strings=on. Adminpasswortzeilen werden nur von psqls Passwortprompts gelesen,

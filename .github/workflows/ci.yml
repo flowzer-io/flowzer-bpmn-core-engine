@@ -11,6 +11,11 @@ on:
       - release
   workflow_dispatch:
     inputs:
+      pg_channel_opening:
+        description: 'Nur nach Root-Lease: fester Nur-PG-Modus mit öffentlichen Source-/Tree-/Workflow-/Nonce-/Fristbindungen; leer unverändert.'
+        type: string
+        required: false
+        default: ''
       stdin_pilot_opening:
         description: 'Nur nach Root-Lease: nichtgeheime, Source-/Tree-/Workflow-gebundene JSON-Bindung; leer bleibt geschlossen.'
         type: string
@@ -21,8 +26,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.ref }}${{ inputs.pg_channel_opening != '' && '-pg-channel' || '' }}
+  cancel-in-progress: ${{ inputs.pg_channel_opening == '' }}
 
 env:
   DOTNET_NOLOGO: true
@@ -37,6 +42,7 @@ env:
 
 jobs:
   dotnet:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.pg_channel_opening == '' }}
     name: Restore, Build und Tests (.NET)
     runs-on: ubuntu-latest
     env:
@@ -196,6 +202,7 @@ jobs:
           EOF
 
   console:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.pg_channel_opening == '' }}
     name: Build und Tests der React-Konsole
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -263,6 +270,7 @@ jobs:
           if-no-files-found: error
 
   typescript_sdk:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.pg_channel_opening == '' }}
     name: Headless SDK und React-Bausteine
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -326,6 +334,7 @@ jobs:
           npm audit --audit-level=high
 
   console_smoke:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.pg_channel_opening == '' }}
     name: UI-Smoke-Tests der Konsole
     runs-on: ubuntu-latest
     needs:
@@ -426,6 +435,7 @@ jobs:
           EOF
 
   third_party_notices:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.pg_channel_opening == '' }}
     name: Abhängigkeits-/Lizenzhinweise auf Drift pruefen
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -476,6 +486,7 @@ jobs:
   # faerbt aber den Workflow rot. Bei Fehler, Abbruch oder Timeout liegen Logs und Report als
   # Artefakt bereit.
   installation_auth:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.pg_channel_opening == '' }}
     name: Installations- und Auth-Abnahme (isolierter Keycloak)
     runs-on: ubuntu-latest
     needs:
@@ -531,6 +542,7 @@ jobs:
   # Clients des Runners aelter als der Server sind. Nicht als Pflicht-Check eingetragen; bei Fehler,
   # Abbruch oder Timeout liegen die Skriptausgaben als Artefakt bereit (ohne Dumps).
   backup_restore_scripts:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.pg_channel_opening == '' }}
     name: Sicherung und Wiederherstellung (Skripttest)
     runs-on: ubuntu-latest
     needs:
@@ -575,6 +587,7 @@ jobs:
   # laufen. Nicht als Pflicht-Check eingetragen. Die Ausgaben enthalten keine Dumps und keine
   # Passwoerter und liegen immer als Artefakt bereit.
   upgrade_restore_rig:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.pg_channel_opening == '' }}
     name: Upgrade- und Restore-Rig (echte Images)
     runs-on: ubuntu-latest
     needs:
@@ -619,3 +632,48 @@ jobs:
           name: upgrade-restore-logs
           path: ${{ runner.temp }}/upgrade-restore
           if-no-files-found: ignore
+
+  pg_channel:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.pg_channel_opening != '' }}
+    name: Nur PostgreSQL-Kanal, synthetische Daten
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      PG_CHANNEL_OPENING: ${{ inputs.pg_channel_opening }}
+      PG_LEGACY_OPENING: ${{ inputs.stdin_pilot_opening }}
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: Exakten Workflow-Quellstand auschecken
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Öffentliche Source- und Hosted-Bindung vor jedem Dockerport prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B tests/manual-postgres-channel/run_fixture.py --preflight-only
+
+      - name: Reine Adapter- und eigene Fake-Formatterverträge
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B deploy/tickytask-demo-coolify/supervised-operator/test_manual_pg_adapter.py
+          python3 -I -B tests/manual-postgres-channel/test_fixture.py
+          python3 -I -B tests/manual-postgres-channel/test_ci_routing.py
+          python3 -I -B tests/manual-postgres-channel/test_docker_formats.py
+
+      - name: Einmalige isolierte PG-Kanalqualifikation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B tests/manual-postgres-channel/run_fixture.py --once
+
+      - name: Ausschließlich sicheren terminalen Beleg sichern
+        if: always()
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
+        with:
+          name: pg-channel-proof
+          path: ${{ runner.temp }}/flowzer-pg-channel-proof/proof.safe.json
+          if-no-files-found: warn
+          retention-days: 7
