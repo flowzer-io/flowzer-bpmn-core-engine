@@ -67,6 +67,10 @@ public partial class BpmnBusinessLogic
                     .Where(task => task.Id == subscription.Id && task.Token?.Id == result.TokenId).ToArray();
                 if (subscriptions.Length != 1) return await NotFound();
                 subscription = subscriptions[0];
+                // Der Host bindet nicht nur Token und Knoten, sondern die angezeigte
+                // Subscription. Ein fremdes oder leeres Ziel bleibt wie sonst verborgen.
+                if (result.ExpectedUserTaskId is { } expectedTaskId && subscription.Id != expectedTaskId)
+                    return await NotFound();
                 if (subscription.ProcessInstanceId != instanceId
                     || subscription.Token.State != FlowNodeState.Active
                     || !string.Equals(subscription.Token.CurrentFlowNode?.Id, result.FlowNodeId, StringComparison.Ordinal))
@@ -76,7 +80,8 @@ public partial class BpmnBusinessLogic
 
                 var access = await UserTaskWorkAuthorization.EvaluateAsync(
                     storage, subscription, currentUser, canOperateAllTasks);
-                if (!access.CanWork)
+                if (!access.CanWork
+                    || (result.RequireAssignedToCurrentUser && !access.IsAssignedToCurrentUser))
                 {
                     return await NotFound();
                 }
@@ -112,6 +117,14 @@ public partial class BpmnBusinessLogic
                     return await NotFound();
                 }
 
+                // Migration nimmt dieselbe Instanz-/Task-Sperre. Revision, Token und
+                // Knoten können dabei gleich bleiben; ein vorheriger HTTP-GET reicht
+                // deshalb nicht. Erst hier wird die angezeigte Version atomar gebunden.
+                // Erfolgreiche persönliche Replays wurden bereits oben beantwortet.
+                if (result.ExpectedDefinitionId is { } expectedDefinitionId
+                    && processInstance.DefinitionId != expectedDefinitionId)
+                    throw new UserTaskBindingConflictException();
+
                 var validated = await ValidateFormInputAsync(storage,
                     (activeTokens[0].CurrentFlowNode as BPMN.HumanInteraction.UserTask)?.Implementation,
                     processInstance.DefinitionId, result.Data,
@@ -139,6 +152,7 @@ public partial class BpmnBusinessLogic
                         Action = "complete",
                         ActorOwnerKey = UserTaskDraftOwnerKey.Create(currentUser),
                         ActorUserId = userId,
+                        AuthenticatedActor = currentUser.ToAuthenticatedActor(),
                         ActorDisplayName = currentUser.Names.FirstOrDefault(name => !Guid.TryParse(name, out _)),
                         PreviousDirectoryAssigneeUserId = currentState?.DirectoryAssigneeUserId,
                         PreviousAssigneeUserId = currentState?.AssigneeUserId,
@@ -157,6 +171,9 @@ public partial class BpmnBusinessLogic
                 {
                     // Externe Legacy-Adapter bleiben bis zu ihrer Lifecycle-Erweiterung kompatibel.
                 }
+                // Der bereits autorisierte aktive Token trägt die tatsächliche Person
+                // samt vermittelndem Client; Formulardaten können diesen Audit nicht setzen.
+                activeTokens[0].CompletedByActor = currentUser.ToAuthenticatedActor();
                 instance.HandleTaskResult(result.TokenId, validated, userId);
                 // SaveInstance schreibt bei der Dateiablage mehrere dauerhafte Dokumente.
                 // Scheitert danach der Ergebnisdatensatz, bleibt der Ausgang absichtlich

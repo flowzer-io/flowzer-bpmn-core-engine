@@ -67,10 +67,14 @@ function labelOf(field: string, labels: Map<string, string>): string {
 }
 
 /** Gemeinsame, wertefreie Fehleranzeige. Der Renderer und seine Eingaben bleiben bestehen. */
-export function FormValidationErrors({ error, schema }: { error: unknown; schema?: string }) {
+export function FormValidationErrors({ error, schema, safeFieldMessages }: {
+  error: unknown; schema?: string;
+  /** Explizite sichere Feldmeldungen eines authentifizierten Host-API-Vertrags, keine Remote-Freitexte. */
+  safeFieldMessages?: Record<string, string[]>;
+}) {
   const ref = useRef<HTMLElement>(null);
   const body = error instanceof ApiError || error instanceof FlowzerApiError ? error.body : null;
-  const raw = body && typeof body === 'object' ? (body as Record<string, unknown>).errors : null;
+  const raw = safeFieldMessages ?? (body && typeof body === 'object' ? (body as Record<string, unknown>).errors : null);
   const entries = raw && typeof raw === 'object' && !Array.isArray(raw)
     ? Object.entries(raw).filter((entry): entry is [string, string[]] => Array.isArray(entry[1]) && entry[1].every(code => typeof code === 'string')).slice(0, 100)
     : [];
@@ -84,7 +88,7 @@ export function FormValidationErrors({ error, schema }: { error: unknown; schema
       <ul className="mt-2 list-disc space-y-1 pl-5">
         {entries.map(([field, codes]) => (
           <li key={field}><strong>{labelOf(field, labels)}:</strong>{' '}
-            {[...new Set(codes.map(code => messages.get(code) ?? 'Die Eingabe ist nicht zulässig.'))].join(' ')}
+            {[...new Set(codes.map(code => safeFieldMessages ? code : messages.get(code) ?? 'Die Eingabe ist nicht zulässig.'))].join(' ')}
           </li>
         ))}
       </ul>

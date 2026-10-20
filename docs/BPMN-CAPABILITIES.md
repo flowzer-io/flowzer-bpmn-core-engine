@@ -216,6 +216,11 @@ sagen Fehlerpfade weiterhin nicht zu.
   `Unhandled BPMN error 'ANTRAG_UNVOLLSTAENDIG' at 'ErrorEnd_1'.`; sie ist Teil der
   Diagnosesicht und damit an die Betriebsrolle gebunden. Das Error-End-Event bleibt im
   Laufzeitverlauf als erreichter Knoten sichtbar.
+- Ein Error-End kann mit `zeebe:ioMapping/zeebe:input` eine ausdrückliche Fehlerdaten-
+  projektion erzeugen. Nur diese Eingänge gelangen auf den gefangenen Fehlerpfad, niemals
+  automatisch der ganze unterbrochene Scope. Ohne Eingangsmappings bleibt der Fehler
+  datenlos. Das [TT-Urlaubsbeispiel](../examples/tickytask-urlaub/README.md) überträgt so
+  genau eine Rückfrage an die Korrekturform.
 - Ein externer Worker wirft denselben Fehler über `POST /job/{jobId}/throw-error`; siehe
   [SERVICE-TASK-WORKER.md](SERVICE-TASK-WORKER.md).
 

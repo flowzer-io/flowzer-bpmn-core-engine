@@ -10,6 +10,32 @@ namespace WebApiEngine.Tests;
 [NonParallelizable]
 public class HttpContextCurrentUserContextAccessorTest
 {
+    // Testzweck: Der vermittelnde Client stammt aus genau einem authentisierten azp,
+    // nicht aus einem frei setzbaren Header oder einer Benutzer-/Gruppenzuordnung.
+    [Test]
+    public void GetCurrentUser_ShouldReadVerifiedAuthorizedClient()
+    {
+        var accessor = CreateAccessor(Environments.Production,
+            [new Claim("sub", Guid.NewGuid().ToString()), new Claim("azp", "synthetic-tt-demo")]);
+        var json = System.Text.Json.JsonSerializer.SerializeToElement(accessor.GetCurrentUser());
+        json.GetProperty("AuthorizedClientId").GetString().Should().Be("synthetic-tt-demo");
+    }
+
+    // Testzweck: Mehrdeutige oder logungeeignete Clientclaims dürfen keinen eindeutigen
+    // Vermittler vorspiegeln. Ohne azp bleiben historische authentisierte Aufrufer kompatibel.
+    [TestCase("first", "second")]
+    [TestCase("first", "first")]
+    [TestCase("", null)]
+    [TestCase("bad\nclient", null)]
+    public void GetCurrentUser_ShouldRejectAmbiguousOrInvalidAuthorizedClient(string value, string? second)
+    {
+        var claims = new List<Claim> { new("sub", Guid.NewGuid().ToString()), new("azp", value) };
+        if (second is not null) claims.Add(new Claim("azp", second));
+        var accessor = CreateAccessor(Environments.Production, claims);
+        Action read = () => accessor.GetCurrentUser();
+        read.Should().Throw<UnauthorizedAccessException>();
+    }
+
     // Testzweck: Fuer die Zuweisungspruefung sammelt der Kontext alle Kennungen, unter denen ein
     // BPMN-Modell die Person meinen kann, und ihre Gruppen aus dem groups-Claim.
     [Test]

@@ -13,7 +13,8 @@ public sealed class InstanceAccessService(
     IStorageSystem storage,
     ICurrentUserContextAccessor currentUserAccessor,
     IHttpContextAccessor httpContextAccessor,
-    IAuthorizationService authorization)
+    IAuthorizationService authorization,
+    WorkflowOutcomeProjector outcomes)
 {
     public async Task<(CurrentUserContext User, bool CanInspect)> GetPermissionsAsync()
     {
@@ -30,7 +31,7 @@ public sealed class InstanceAccessService(
     {
         var (user, canInspect) = await GetPermissionsAsync();
         var instances = await storage.InstanceStorage.GetAllInstances();
-        if (canInspect) return await instances.ToDtosAsync(storage.DefinitionStorage, canInspect: true);
+        if (canInspect) return await ProjectAsync(instances, canInspect: true);
 
         // Einmal laden, nicht eine vollständige Aufgabenliste je Instanz. Die Zuordnung
         // prüft zusätzlich die tatsächlichen aktiven Tokens der geladenen Instanz.
@@ -45,7 +46,7 @@ public sealed class InstanceAccessService(
         var visible = instances.Where(instance =>
             InstanceAccessPolicy.CanReadOverview(
                 instance, user, tasks[instance.InstanceId], directorySnapshot, canInspect: false, workStates));
-        return await visible.ToDtosAsync(storage.DefinitionStorage, canInspect: false);
+        return await ProjectAsync(visible, canInspect: false);
     }
 
     public async Task<ProcessInstanceInfoDto?> GetAsync(Guid instanceId)
@@ -62,10 +63,11 @@ public sealed class InstanceAccessService(
             : await UserTaskAssignment.LoadDirectorySnapshotIfRequiredAsync(
                 storage.IdentityDirectoryStorage, tasks,
                 workStates!.Values.Any(state => state.DirectoryAssigneeUserId.HasValue));
-        return InstanceAccessPolicy.CanReadOverview(
-                instance, user, tasks, directorySnapshot, canInspect: canInspect, workStates)
-            ? await instance.ToDtoAsync(storage.DefinitionStorage, canInspect: canInspect)
-            : null;
+        if (!InstanceAccessPolicy.CanReadOverview(instance, user, tasks, directorySnapshot, canInspect, workStates))
+            return null;
+        var dto = await instance.ToDtoAsync(storage.DefinitionStorage, canInspect);
+        dto.Outcome = await outcomes.ProjectAsync(instance);
+        return dto;
     }
 
     /// <summary>
@@ -106,6 +108,18 @@ public sealed class InstanceAccessService(
         {
             return null;
         }
+    }
+
+    // Erst objektberechtigte Instanzen projizieren. Outcome erfordert keine Diagnoseberechtigung
+    // und gibt keine Variablen/Tokens weiter; die bestehende DTO-Privacy bleibt unverändert.
+    private async Task<List<ProcessInstanceInfoDto>> ProjectAsync(IEnumerable<ProcessInstanceInfo> instances, bool canInspect)
+    {
+        var visible = instances.ToArray();
+        var dtos = await visible.ToDtosAsync(storage.DefinitionStorage, canInspect);
+        var projectedOutcomes = await outcomes.ProjectBatchAsync(visible);
+        for (var index = 0; index < visible.Length; index++)
+            dtos[index].Outcome = projectedOutcomes[index];
+        return dtos;
     }
 
     private async Task<IReadOnlyDictionary<Guid, UserTaskWorkState>> LoadWorkStates(

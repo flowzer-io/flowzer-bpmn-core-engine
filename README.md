@@ -183,6 +183,11 @@ in [packages/flowzer-sdk/README.md](packages/flowzer-sdk/README.md),
 [packages/flowzer-react/README.md](packages/flowzer-react/README.md) und
 [docs/HOST-INTEGRATION.md](docs/HOST-INTEGRATION.md).
 
+Die minimale [fachliche Ergebnisprojektion](docs/WORKFLOW-OUTCOMES.md) trennt
+ausdrücklich freigegebene Genehmigungs-/Ablehnungsenden vom technischen Enginezustand.
+Ohne konkrete serverseitige Versions- und Inhaltsbindung bleibt das Ergebnis unbekannt;
+Prozessvariablen und interne Tokens werden dafür nicht an einen Host ausgegeben.
+
 ## Gemeinsame Formularbibliothek
 
 Jedes Formular ist zugleich eine wiederverwendbare Komponente und kann in hierarchischen

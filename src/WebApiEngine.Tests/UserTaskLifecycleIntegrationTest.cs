@@ -12,6 +12,55 @@ namespace WebApiEngine.Tests;
 [NonParallelizable]
 public sealed class UserTaskLifecycleIntegrationTest
 {
+    // Testzweck: Gruppentasks bleiben persönlich: Claim und Abschluss bewahren
+    // den tatsächlichen Issuer/Subject samt verifiziertem Vermittler, unabhängig vom JSON-Akteur.
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task GroupClaimAndCompletion_ShouldAuditActualPersonAndVerifiedClient(bool directoryMode)
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var directory = directoryMode ? await PublishDirectoryAsync(context, Guid.NewGuid(), annaInCandidateGroup: true) : default;
+        var task = await context.StartAsync(directoryMode ? "" : "candidateGroups=\"review\"",
+            assignmentExtensionXml: directoryMode
+                ? $"<flowzer:taskAssignment mode=\"directory\" candidateGroupIds=\"{directory.GroupId}\" />" : null);
+        using var person = context.CreateClient(authorizedClientId: "synthetic-tt-demo");
+        person.DefaultRequestHeaders.Add("X-Flowzer-ClientId", "spoofed-header");
+        using var claim = await person.PostAsJsonAsync($"/usertask/{task.Id}/claim", new
+            { expectedRevision = 0, actorUserId = Guid.NewGuid(), authorizedClientId = "spoofed-body" });
+        claim.StatusCode.Should().Be(HttpStatusCode.OK);
+        var completion = Completion(task);
+        completion.ExpectedTaskRevision = 1;
+        using var completed = await person.PostAsJsonAsync("/usertask", completion);
+        completed.StatusCode.Should().Be(HttpStatusCode.OK);
+        var events = await context.Storage.UserTaskLifecycleStorage.GetEventsByProcessInstance(task.ProcessInstanceId!.Value);
+        events.Select(item => item.Action).Should().Equal("claim", "complete");
+        foreach (var item in events)
+        {
+            var json = JsonSerializer.SerializeToElement(item);
+            AssertVerifiedActor(json.GetProperty("AuthenticatedActor"));
+        }
+        var token = (await context.Storage.InstanceStorage.GetProcessInstance(task.ProcessInstanceId.Value)).Tokens
+            .Single(item => item.Id == task.Token.Id);
+        token.CompletedByUserId.Should().Be(AuthenticatedWorkflowTestContext.UserId);
+        AssertVerifiedActor(JsonSerializer.SerializeToElement(token.CompletedByActor));
+        using var operation = context.CreateClient(isOperator: true);
+        foreach (var route in new[] { $"/instance/{task.ProcessInstanceId}", $"/instance/{task.ProcessInstanceId}/history" })
+        {
+            using var projected = await operation.GetAsync(route);
+            projected.StatusCode.Should().Be(HttpStatusCode.OK);
+            (await projected.Content.ReadAsStringAsync()).Should().NotContain("synthetic-tt-demo")
+                .And.NotContain("authenticatedActor").And.NotContain("completedByActor");
+        }
+    }
+
+    private static void AssertVerifiedActor(JsonElement actor)
+    {
+        actor.GetProperty("Identity").GetProperty("Issuer").GetString().Should().Be(AuthenticatedWorkflowTestContext.Issuer);
+        actor.GetProperty("Identity").GetProperty("Subject").GetString().Should().Be(AuthenticatedWorkflowTestContext.UserId.ToString());
+        actor.GetProperty("UserId").GetGuid().Should().Be(AuthenticatedWorkflowTestContext.UserId);
+        actor.GetProperty("ClientId").GetString().Should().Be("synthetic-tt-demo");
+    }
+
     // Testzweck: Zwei Kandidaten dürfen eine freie Aufgabe sehen; nach der Übernahme darf
     // ausschließlich der tatsächliche Bearbeiter Formular, Entwurf und Abschluss nutzen.
     [Test]

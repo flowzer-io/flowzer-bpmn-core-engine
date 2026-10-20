@@ -10,7 +10,7 @@ namespace WebApiEngine.IdentityDirectory;
 /// Liest das Keycloak-Admin-API mit Client-Credentials. Der Client kennt nur die für das
 /// Verzeichnis benötigten Felder und führt keine schreibenden HTTP-Operationen aus.
 /// </summary>
-public sealed class KeycloakAdminClient : IKeycloakAdminClient
+public sealed partial class KeycloakAdminClient : IKeycloakAdminClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly HttpClient _httpClient;
@@ -31,6 +31,10 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
     {
         var configuration = ValidateConfiguration();
         var accessToken = new AccessTokenLease(this, configuration);
+        if (!string.IsNullOrEmpty(_options.RootGroupId))
+        {
+            return await GetScopedSnapshotAsync(configuration, accessToken, cancellationToken);
+        }
         var users = await GetPagedAsync<KeycloakUserRepresentation>(
             configuration.AdminEndpoint("users"), user => user.Id, "user", accessToken, cancellationToken);
         var rootGroups = await GetPagedAsync<KeycloakGroupRepresentation>(
@@ -87,7 +91,7 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
             groups.Values.OrderBy(group => group.Id, StringComparer.Ordinal).ToArray());
     }
 
-    private async Task<AccessToken> GetAccessTokenAsync(ValidatedConfiguration configuration, CancellationToken cancellationToken)
+    private async Task<AccessToken> GetAccessTokenAsync(ValidatedConfiguration configuration, CancellationToken cancellationToken, bool strictResponse = false)
     {
         var token = await SendJsonAsync<KeycloakTokenResponse>(_ =>
             Task.FromResult(new HttpRequestMessage(HttpMethod.Post, configuration.TokenEndpoint)
@@ -98,8 +102,11 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
                     ["client_id"] = configuration.ClientId,
                     ["client_secret"] = configuration.ClientSecret
                 })
-            }), "token request", cancellationToken);
-        if (string.IsNullOrWhiteSpace(token.AccessToken))
+            }), "token request", cancellationToken, strictResponse);
+        if (string.IsNullOrWhiteSpace(token.AccessToken)
+            || (strictResponse && (token.AccessToken.Length > 65_536 || token.AccessToken.Any(character => char.IsWhiteSpace(character) || char.IsControl(character))
+                || token.ExpiresIn is not (> 0 and <= 86_400)
+                || !string.Equals(token.TokenType, "Bearer", StringComparison.OrdinalIgnoreCase))))
         {
             throw InvalidResponse("Keycloak token response did not contain an access token.");
         }
@@ -133,7 +140,7 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
                     "Bearer",
                     await accessToken.GetValidTokenAsync(requestToken));
                 return request;
-            }, "directory request", cancellationToken);
+            }, "directory request", cancellationToken, accessToken.StrictResponse);
             if (currentPage is null)
             {
                 throw InvalidResponse("Keycloak returned an invalid directory response.");
@@ -146,6 +153,7 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
 
             foreach (var entry in currentPage)
             {
+                if (entry is null) throw InvalidResponse("Keycloak returned a null directory entry.");
                 var stableId = RequireId(getStableId(entry), entityName);
                 if (!knownIdentifiers.Add(stableId))
                 {
@@ -187,6 +195,19 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
         string? parentId = null)
     {
         var groupId = RequireId(group.Id, "group");
+        if (!string.IsNullOrEmpty(_options.RootGroupId) && parentId is not null)
+        {
+            var parentPath = groups[parentId].Path;
+            // Keycloak erlaubt Slashes im einzelnen Gruppennamen, je Modus roh
+            // oder als ~/. Die Child-Route/IDs sind Autorität; der exakte Pfad
+            // ist nur die zusätzliche Driftprüfung, kein Hierarchieparser.
+            if (string.IsNullOrWhiteSpace(parentPath) || string.IsNullOrWhiteSpace(group.Name)
+                || (!string.Equals(group.Path, parentPath + "/" + group.Name, StringComparison.Ordinal)
+                    && !string.Equals(group.Path, parentPath + "/" + group.Name.Replace("/", "~/", StringComparison.Ordinal), StringComparison.Ordinal)))
+            {
+                throw InvalidResponse("Keycloak returned a child outside its requested group path.");
+            }
+        }
         AddGroup(groups, group, parentId);
         if (!loadedGroupTrees.Add(groupId)) return;
 
@@ -207,7 +228,8 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
     private async Task<T> SendJsonAsync<T>(
         Func<CancellationToken, Task<HttpRequestMessage>> createRequest,
         string operation,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool strictResponse = false)
     {
         var retries = Math.Clamp(_options.MaxRetries, 0, 5);
         for (var attempt = 0; ; attempt++)
@@ -228,7 +250,17 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
 
                     await using var body = await response.Content.ReadAsStreamAsync(requestTimeout.Token);
                     await using var limitedBody = new SizeLimitedReadStream(body, maximumBytes);
-                    var result = await JsonSerializer.DeserializeAsync<T>(limitedBody, JsonOptions, requestTimeout.Token);
+                    T? result;
+                    if (strictResponse)
+                    {
+                        if (!string.Equals(response.Content.Headers.ContentType?.MediaType, "application/json", StringComparison.OrdinalIgnoreCase))
+                            throw InvalidResponse("Keycloak returned a non-JSON access response.");
+                        using var document = await JsonDocument.ParseAsync(limitedBody,
+                            new JsonDocumentOptions { MaxDepth = 32 }, requestTimeout.Token);
+                        RequireUniqueProperties(document.RootElement);
+                        result = document.RootElement.Deserialize<T>(JsonOptions);
+                    }
+                    else result = await JsonSerializer.DeserializeAsync<T>(limitedBody, JsonOptions, requestTimeout.Token);
                     if (result is null)
                     {
                         throw InvalidResponse("Keycloak returned an empty response.");
@@ -238,6 +270,9 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
                 }
 
                 var kind = Classify(response.StatusCode, request.Method == HttpMethod.Post);
+                // Ein fehlender Token-Endpunkt ist niemals ein gelöschtes Benutzerprofil.
+                if (strictResponse && request.Method == HttpMethod.Post && kind == KeycloakAdminClientFailureKind.NotFound)
+                    kind = KeycloakAdminClientFailureKind.Authentication;
                 if (kind == KeycloakAdminClientFailureKind.Transient && attempt < retries)
                 {
                     await DelayBeforeRetry(cancellationToken);
@@ -301,7 +336,8 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
 
     private ValidatedConfiguration ValidateConfiguration()
     {
-        if (!Uri.TryCreate(_options.ServerUrl, UriKind.Absolute, out var serverUrl)
+        if ((!string.IsNullOrEmpty(_options.RootGroupId) && !_options.IsValid())
+            || !Uri.TryCreate(_options.ServerUrl, UriKind.Absolute, out var serverUrl)
             || serverUrl.Scheme != Uri.UriSchemeHttps
             || !string.IsNullOrEmpty(serverUrl.UserInfo)
             || !string.IsNullOrEmpty(serverUrl.Query)
@@ -341,9 +377,9 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
     }
 
     private static string RequireId(string? id, string entity) =>
-        !string.IsNullOrWhiteSpace(id)
+        !string.IsNullOrWhiteSpace(id) && KeycloakDirectoryOptions.IsSafeProviderId(id)
             ? id
-            : throw InvalidResponse($"Keycloak returned a {entity} without a stable identifier.");
+            : throw InvalidResponse($"Keycloak returned a {entity} without a safe stable identifier.");
 
     private static KeycloakAdminClientException InvalidResponse(string message) =>
         new(KeycloakAdminClientFailureKind.InvalidResponse, message);
@@ -364,6 +400,9 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
     {
         public Uri TokenEndpoint => new($"{ServerUrl}/realms/{Realm}/protocol/openid-connect/token", UriKind.Absolute);
 
+        public Uri AdminResourceEndpoint(string resource) =>
+            new($"{ServerUrl}/admin/realms/{Realm}/{resource}", UriKind.Absolute);
+
         public Func<int, Uri> AdminEndpoint(string resource) => first =>
             new Uri($"{ServerUrl}/admin/realms/{Realm}/{resource}?first={first}&max={PageSize}&briefRepresentation=true", UriKind.Absolute);
     }
@@ -375,6 +414,9 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
 
         [JsonPropertyName("expires_in")]
         public int? ExpiresIn { get; init; }
+
+        [JsonPropertyName("token_type")]
+        public string? TokenType { get; init; }
     }
 
     private sealed class KeycloakUserRepresentation
@@ -397,16 +439,17 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
 
     private sealed record AccessToken(string Value, DateTimeOffset ExpiresAtUtc);
 
-    private sealed class AccessTokenLease(KeycloakAdminClient owner, ValidatedConfiguration configuration)
+    private sealed class AccessTokenLease(KeycloakAdminClient owner, ValidatedConfiguration configuration, bool strictResponse = false)
     {
         private AccessToken? _token;
+        public bool StrictResponse => strictResponse;
 
         public async Task<string> GetValidTokenAsync(CancellationToken cancellationToken)
         {
             var refreshSkew = TimeSpan.FromSeconds(Math.Clamp(owner._options.TokenRefreshSkewSeconds, 0, 300));
             if (_token is null || _token.ExpiresAtUtc <= owner._timeProvider.GetUtcNow().Add(refreshSkew))
             {
-                _token = await owner.GetAccessTokenAsync(configuration, cancellationToken);
+                _token = await owner.GetAccessTokenAsync(configuration, cancellationToken, strictResponse);
             }
 
             return _token.Value;

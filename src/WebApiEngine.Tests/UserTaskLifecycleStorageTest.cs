@@ -10,6 +10,34 @@ namespace WebApiEngine.Tests;
 [NonParallelizable]
 public sealed class UserTaskLifecycleStorageTest
 {
+    // Testzweck: Tatsächlich fehlende neue Actorfelder im Alt-JSON bleiben lesbar;
+    // weder Vermittler noch verifizierte Identität werden aus historischen GUIDs erfunden.
+    [Test]
+    public async Task LegacyJsonWithoutActorMetadata_ShouldRemainReadable()
+    {
+        using var context = new Context();
+        var task = await context.AddTask();
+        var item = Create(task, "claim", revision: 1).Event;
+        var oldJson = Newtonsoft.Json.Linq.JObject.FromObject(item);
+        oldJson.Remove(nameof(UserTaskAssignmentEvent.AuthenticatedActor)).Should().BeTrue();
+        var loaded = Newtonsoft.Json.JsonConvert.DeserializeObject<UserTaskAssignmentEvent>(oldJson.ToString());
+        loaded.Should().NotBeNull();
+        loaded!.AuthenticatedActor.Should().BeNull();
+        loaded.ActorUserId.Should().Be(item.ActorUserId);
+        // Auch ein tatsächlicher polymorpher Task-Token im bisherigen Speicherformat
+        // muss ohne neue Felder laden, nicht nur ein künstliches leeres JSON-Objekt.
+        var tokenJson = Newtonsoft.Json.Linq.JObject.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(
+            task.Token, context.Storage.NewtonSoftDefaultSettings));
+        tokenJson.Remove(nameof(Token.CompletedByActor)).Should().BeTrue();
+        tokenJson.Remove(nameof(Token.Withdrawal)).Should().BeTrue();
+        var token = tokenJson.ToObject<Token>(Newtonsoft.Json.JsonSerializer.Create(context.Storage.NewtonSoftDefaultSettings));
+        token.Should().NotBeNull();
+        token!.Id.Should().Be(task.Token.Id);
+        token.CurrentBaseElement.Should().BeOfType<UserTask>();
+        token.CompletedByActor.Should().BeNull();
+        token.Withdrawal.Should().BeNull();
+    }
+
     // Testzweck: Zwei gleichzeitige Zustandswechsel derselben Revision haben genau einen
     // Gewinner und erzeugen deshalb auch nur ein Auditereignis.
     [Test]
@@ -68,7 +96,7 @@ public sealed class UserTaskLifecycleStorageTest
     }
 
     internal static (UserTaskWorkState State, UserTaskAssignmentEvent Event) Create(
-        UserTaskSubscription task, string action, long revision)
+        UserTaskSubscription task, string action, long revision, AuthenticatedActor? authenticatedActor = null)
     {
         var now = DateTimeOffset.UtcNow;
         var state = new UserTaskWorkState
@@ -91,7 +119,8 @@ public sealed class UserTaskLifecycleStorageTest
             Revision = revision,
             Action = action,
             ActorOwnerKey = new string('b', 64),
-            ActorUserId = Guid.NewGuid(),
+            ActorUserId = authenticatedActor?.UserId ?? Guid.NewGuid(),
+            AuthenticatedActor = authenticatedActor,
             ActorDisplayName = "Testakteur",
             Reason = "Testgrund",
             CorrelationId = Guid.NewGuid().ToString("N"),

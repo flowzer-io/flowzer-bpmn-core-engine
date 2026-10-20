@@ -15,6 +15,7 @@ internal static class StorageJson
     private static readonly JsonSerializerSettings Settings = new()
     {
         TypeNameHandling = TypeNameHandling.Auto,
+        Converters = [new StorageSystem.StorageVariableDataConverter()],
         TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Simple,
         SerializationBinder = new KnownAssembliesBinder(),
         Formatting = Formatting.None

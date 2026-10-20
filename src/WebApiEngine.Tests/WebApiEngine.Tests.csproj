@@ -36,6 +36,11 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- Der TT-Durchstich prüft das ausgelieferte Human-Task-Beispiel, keine
+             abweichende BPMN-Kopie aus dem Testcode. Alle Identitäten bleiben synthetisch. -->
+        <None Include="..\..\examples\tickytask-urlaub\**\*.bpmn;..\..\examples\tickytask-urlaub\**\*.dmn;..\..\examples\tickytask-urlaub\**\*.json"
+              Link="TickyTaskVacation\%(RecursiveDir)%(Filename)%(Extension)"
+              CopyToOutputDirectory="Always" />
         <!-- Das Beispiel „Urlaubsantrag" wird im Original durchgespielt, damit der Abbruch bei
              einer abgelehnten Pruefung nicht nur an einem Testmodell haengt. Die Formulare
              kommen mit: Ihre Namen sind die Form-Keys im Modell. -->

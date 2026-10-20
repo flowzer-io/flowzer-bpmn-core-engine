@@ -29,6 +29,10 @@ public static class ExpandoHelper
     {
         return (ExpandoObject?) ToDynamic(obj, true);
     }
+    /// <summary>
+    /// Überführt Datenobjekte rekursiv in FEEL-/JavaScript-kompatible Werte. Dictionaries
+    /// behalten ihre Datenkeys vollständig; die Methode ersetzt niemals Fachvalidierung.
+    /// </summary>
     public static object? ToDynamic(this object? obj, bool forceExpando = false)
     {
         switch (obj)
@@ -39,6 +43,16 @@ public static class ExpandoHelper
                 return jsObj.ToDynamic();
             case ExpandoObject:
                 return obj;
+            case IDictionary<string, object?> entries:
+                // Normalisierte JSON-Werte sind Datenobjekte, keine CLR-Modelle.
+                // Reflection auf Dictionary würde Count/Keys/Values statt kind/id
+                // in den FEEL-Kontext schreiben. Alle echten Keys bleiben erhalten,
+                // auch unerlaubte Metadaten: Validierung erfolgt erst beim Verbraucher.
+                var dataObject = new ExpandoObject();
+                var data = (IDictionary<string, object?>)dataObject;
+                foreach (var (key, value) in entries)
+                    data.Add(key, IsComlexValue(value) ? value.ToDynamic() : value);
+                return dataObject;
         }
 
         if (!IsComlexValue(obj))

@@ -96,6 +96,7 @@ public static class ProcessInstanceMappingExtensions
             UserTaskSubscriptionCount = processInstanceInfo.UserTaskSubscriptionCount,
             ServiceSubscriptionCount = canInspect ? processInstanceInfo.ServiceSubscriptionCount : 0,
             State = (ProcessInstanceStateDto)processInstanceInfo.State,
+            WasWithdrawn = processInstanceInfo.Tokens.Any(token => token.ParentTokenId is null && token.Withdrawal is not null),
             Tokens = canInspect ? processInstanceInfo.Tokens.Select(token => token.ToDto()).ToList() : [],
             CanInspect = canInspect,
             FailureReason = canInspect ? processInstanceInfo.FailureReason : null,

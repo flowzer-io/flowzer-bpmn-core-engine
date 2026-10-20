@@ -112,3 +112,39 @@ describe('AssignmentSection-Moduswechsel', () => {
     expect(screen.getByTestId('picker-Direkter Bearbeiter')).not.toHaveTextContent('user-old');
   });
 });
+
+// Testzweck: Eine geladene dynamische Zuweisung ist sichtbar und editierbar, ohne
+// versehentlich als leere feste Zuweisung zurückgeschrieben zu werden.
+describe('AssignmentSection-Directory-Quelle', () => {
+  it('zeigt den Initiator statt statischer Picker und erhält den Vertrag beim Öffnen', () => {
+    const editor = editorDouble();
+    render(<AssignmentSection definitionId="urlaub" properties={properties({ $type: 'flowzer:TaskAssignment', mode: 'directory', assigneeSource: 'initiator' })} editor={editor} readOnly={false} />);
+    expect(screen.getByRole('tab', { name: 'Antragsteller' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByTestId('picker-Direkter Bearbeiter')).not.toBeInTheDocument();
+    expect(editor.setDirectoryAssignment).not.toHaveBeenCalled();
+  });
+
+  it('persistiert eine neue Initiatorquelle nur nach bewusster Auswahl', async () => {
+    const editor = editorDouble(); const user = userEvent.setup();
+    render(<AssignmentSection definitionId="urlaub" properties={properties({ $type: 'flowzer:TaskAssignment', mode: 'directory', assigneeId: 'old' })} editor={editor} readOnly={false} />);
+    await user.click(screen.getByRole('tab', { name: 'Antragsteller' }));
+    expect(editor.setDirectoryAssignment).toHaveBeenCalledWith('Task_1', { assigneeSource: 'initiator' });
+  });
+
+  it('schreibt erst den bestätigten einfachen Variablennamen', async () => {
+    const editor = editorDouble(); const user = userEvent.setup();
+    render(<AssignmentSection definitionId="urlaub" properties={properties({ $type: 'flowzer:TaskAssignment', mode: 'directory', assigneeSource: 'initiator' })} editor={editor} readOnly={false} />);
+    await user.click(screen.getByRole('tab', { name: 'Formularvariable' }));
+    expect(editor.setDirectoryAssignment).not.toHaveBeenCalled();
+    await user.type(screen.getByRole('textbox', { name: 'Benutzervariable' }), 'vertretung'); await user.tab();
+    expect(editor.setDirectoryAssignment).toHaveBeenCalledWith('Task_1', { assigneeSource: 'variable:vertretung' });
+  });
+
+  it('sperrt die Quelle und den Variablennamen bei Leserechten', async () => {
+    const editor = editorDouble(); const user = userEvent.setup();
+    render(<AssignmentSection definitionId="urlaub" properties={properties({ $type: 'flowzer:TaskAssignment', mode: 'directory', assigneeSource: 'variable:vertretung' })} editor={editor} readOnly />);
+    expect(screen.getByRole('textbox', { name: 'Benutzervariable' })).toBeDisabled();
+    await user.click(screen.getByRole('tab', { name: 'Antragsteller' }));
+    expect(editor.setDirectoryAssignment).not.toHaveBeenCalled();
+  });
+});

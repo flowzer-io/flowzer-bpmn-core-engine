@@ -25,6 +25,10 @@ public static class FlowzerCorsExtensions
 
         services.AddCors(options =>
         {
+            // Ausschließlich der mit EnableCors markierte Read-only-Einlöse-Endpunkt:
+            // opaque Frames senden Origin:null, niemals Credentials oder Bearer-Tokens.
+            options.AddPolicy("FlowzerFormEmbedRead", policy =>
+                policy.WithOrigins("null").WithMethods("POST").WithHeaders("Content-Type"));
             options.AddPolicy(PolicyName, policy =>
             {
                 if (allowedOrigins.Length > 0)

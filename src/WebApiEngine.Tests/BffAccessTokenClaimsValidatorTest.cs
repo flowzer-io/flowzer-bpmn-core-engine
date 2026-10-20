@@ -20,6 +20,38 @@ public sealed class BffAccessTokenClaimsValidatorTest
     private static readonly SymmetricSecurityKey SigningKey =
         new(Encoding.UTF8.GetBytes("flowzer-bff-validator-signing-key-which-is-long-enough"));
 
+    // Testzweck: Cookie-Audit übernimmt ausschließlich den kryptografisch geprüften
+    // Access-Token-Client; ein ID-Token-azp darf ihn weder ersetzen noch ergänzen.
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task CreateCookiePrincipal_ShouldUseOnlyAccessTokenAuthorizedClient(bool withClient)
+    {
+        var subject = Guid.NewGuid().ToString();
+        var claims = new List<Claim> { new("sub", subject) };
+        if (withClient) claims.Add(new Claim("azp", "verified-console"));
+        var context = CreateContext(CreateToken(Audience, claims.ToArray()), subject);
+        context.Principal!.AddIdentity(new ClaimsIdentity([new Claim("azp", "id-token-forgery")], "test"));
+        var principal = await CreateValidator().CreateCookiePrincipalAsync(context);
+        principal.FindAll("azp").Select(claim => claim.Value).Should().Equal(
+            withClient ? new[] { "verified-console" } : Array.Empty<string>());
+    }
+
+    // Testzweck: Dedup darf auch identische doppelte Access-Token-Clientclaims
+    // nicht zu einer scheinbar eindeutigen Cookie-Identität normalisieren.
+    [TestCase("first", "first")]
+    [TestCase("first", "second")]
+    [TestCase("", null)]
+    [TestCase("bad\nclient", null)]
+    public async Task ValidateAccessToken_ShouldRejectInvalidAuthorizedClientBeforeDedup(string value, string? second)
+    {
+        var subject = Guid.NewGuid().ToString();
+        var claims = new List<Claim> { new("sub", subject), new("azp", value) };
+        if (second is not null) claims.Add(new Claim("azp", second));
+        Func<Task> read = () => CreateValidator().ValidateAccessTokenAsync(
+            CreateToken(Audience, claims.ToArray()), Principal(new Claim("sub", subject)), Configuration());
+        await read.Should().ThrowAsync<SecurityTokenValidationException>();
+    }
+
     // Testzweck: Nur serverseitig validierte, ausdruecklich erlaubte Identitaets-, Gruppen- und
     // Rollenclaims duerfen ins Cookie gelangen; technische oder fremde Claims bleiben draussen.
     [Test]

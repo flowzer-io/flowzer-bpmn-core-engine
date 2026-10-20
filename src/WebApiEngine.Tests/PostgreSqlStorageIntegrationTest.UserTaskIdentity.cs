@@ -43,4 +43,11 @@ public partial class PostgreSqlStorageIntegrationTest
         await StableUserTaskScenarios.DirectoryProgressAsync(
             new PostgreSqlTransactionalStorageProvider(_dataSource!, Schema));
     }
+    // Testzweck: Echte PostgreSQL-Transaktionen und neue Sessions halten die alte dynamische
+    // Zuweisung fest; nur neu entstandene Aufgaben verwenden die aktualisierte Auswahl.
+    [Test]
+    public async Task DynamicDirectoryAssignment_ShouldFreezeExistingAndResolveNewTasksOnPostgreSql()
+    {
+        await StableUserTaskScenarios.DirectoryProgressAsync(new PostgreSqlTransactionalStorageProvider(_dataSource!, Schema), dynamicAssignment: true);
+    }
 }

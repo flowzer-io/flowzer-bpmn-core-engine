@@ -1,6 +1,9 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using PostgreSqlStorageSystem;
 using StorageSystem;
+using WebApiEngine.IdentityDirectory;
 
 namespace WebApiEngine.Tests;
 
@@ -100,6 +103,54 @@ public partial class PostgreSqlStorageIntegrationTest
 
         attempts.Should().ContainSingle(started => started);
         attempts.Should().ContainSingle(started => !started);
+    }
+
+    // Testzweck: Ein echter PostgreSQL-Stand kann vom realmweiten auf den Gruppen-Scope
+    // wechseln, bewahrt historische IDs und entzieht bei Mitgliedschaftsverlust auch aus
+    // einer neuen Session alle aktuellen Mitgliedschaften ohne falsche Löschung der Historie.
+    [Test]
+    public async Task IdentityDirectoryScope_ShouldNarrowAndRevokeWithoutLosingHistoricIds()
+    {
+        using var storage = new PostgreSqlStorage(_dataSource!, Schema);
+        var initial = CreateDirectorySnapshot("anna", "finance", "Finance");
+        var outside = new DirectoryUser { Id = Guid.NewGuid(), SourceKind = DirectorySourceKind.Keycloak,
+            Issuer = initial.Issuer, Subject = "outside-person", DisplayName = "Other", IsActive = true };
+        var outsideGroup = new DirectoryGroup { Id = Guid.NewGuid(), SourceKind = DirectorySourceKind.Keycloak,
+            Issuer = initial.Issuer, ExternalId = "outside-group", Name = "Other", Path = "/Other", IsActive = true };
+        initial.Users.Add(outside); initial.Groups.Add(outsideGroup);
+        initial.Memberships.Add(new DirectoryMembership { UserId = outside.Id, GroupId = outsideGroup.Id });
+        await StartDirectorySync(storage.IdentityDirectoryStorage, initial);
+        await storage.IdentityDirectoryStorage.PublishSnapshot(initial);
+        var previous = (await storage.IdentityDirectoryStorage.GetActiveSnapshot())!;
+
+        var options = KeycloakDirectoryScopeTest.Options(); options.RootGroupId = "finance"; options.Issuer = initial.Issuer;
+        var root = new KeycloakDirectoryGroup("finance", "Finance", "/finance", null);
+        var client = new ScopeSourceClient(new KeycloakDirectorySnapshot(
+            [new KeycloakDirectoryUser("anna", true, "anna", null, null, ["finance"])], [root]));
+        var synchronizer = new IdentityDirectorySynchronizer(client, storage.IdentityDirectoryStorage, Options.Create(options),
+            TimeProvider.System, NullLogger<IdentityDirectorySynchronizer>.Instance);
+        (await synchronizer.SynchronizeAsync(CancellationToken.None)).Should().Be(IdentityDirectorySynchronizer.SynchronizationOutcome.Succeeded);
+
+        using var reader = new PostgreSqlStorage(_dataSource!, Schema);
+        var scoped = (await reader.IdentityDirectoryStorage.GetActiveSnapshot())!;
+        scoped.Users.Single(user => user.Subject == "anna").Id.Should().Be(previous.Users.Single(user => user.Subject == "anna").Id);
+        scoped.Groups.Single(group => group.ExternalId == "finance").Id.Should().Be(previous.Groups.Single(group => group.ExternalId == "finance").Id);
+        scoped.Users.Single(user => user.Subject == "outside-person").IsActive.Should().BeFalse();
+        scoped.Groups.Single(group => group.ExternalId == "outside-group").IsActive.Should().BeFalse();
+        scoped.Memberships.Should().ContainSingle();
+
+        client.Source = new KeycloakDirectorySnapshot([], [root]);
+        (await synchronizer.SynchronizeAsync(CancellationToken.None)).Should().Be(IdentityDirectorySynchronizer.SynchronizationOutcome.Succeeded);
+        var revoked = (await reader.IdentityDirectoryStorage.GetActiveSnapshot())!;
+        revoked.Users.Should().OnlyContain(user => !user.IsActive);
+        revoked.Users.Single(user => user.Subject == "anna").Id.Should().Be(scoped.Users.Single(user => user.Subject == "anna").Id);
+        revoked.Memberships.Should().BeEmpty();
+    }
+
+    private sealed class ScopeSourceClient(KeycloakDirectorySnapshot source) : IKeycloakAdminClient
+    {
+        internal KeycloakDirectorySnapshot Source { get; set; } = source;
+        public Task<KeycloakDirectorySnapshot> GetSnapshotAsync(CancellationToken cancellationToken) => Task.FromResult(Source);
     }
 
     private static DirectorySnapshot CreateDirectorySnapshot(string subject, string externalGroupId, string groupName)

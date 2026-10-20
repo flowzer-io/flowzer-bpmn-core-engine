@@ -6,6 +6,25 @@ namespace WebApiEngine.Tests;
 
 public partial class PostgreSqlStorageIntegrationTest
 {
+    // Testzweck: Der bestehende JSON-Auditkörper bewahrt den verifizierten Vermittler
+    // über getrennte PostgreSQL-Sessions und nach Ende der offenen Aufgabe; keine neue Spalte.
+    [Test]
+    public async Task UserTaskLifecycle_ShouldRetainAuthenticatedActorAcrossSessions()
+    {
+        var actor = new Model.AuthenticatedActor(
+            new Model.AuthenticatedSubject("https://synthetic.test/realm/demo", "synthetic-person"),
+            Guid.NewGuid(), "synthetic-tt-demo");
+        using var writer = new PostgreSqlStorage(_dataSource!, Schema);
+        var task = await AddDraftUserTaskAsync(writer, Guid.NewGuid());
+        var item = UserTaskLifecycleStorageTest.Create(task, "claim", revision: 1, authenticatedActor: actor);
+        (await writer.UserTaskLifecycleStorage.TryWrite(item.State, 0, item.Event)).Status
+            .Should().Be(UserTaskLifecycleWriteStatus.Written);
+        await writer.SubscriptionStorage.RemoveUserTaskSubscription(task.Id);
+        using var reader = new PostgreSqlStorage(_dataSource!, Schema);
+        (await reader.UserTaskLifecycleStorage.GetEventsByProcessInstance(task.ProcessInstanceId!.Value))
+            .Should().ContainSingle().Which.AuthenticatedActor.Should().Be(actor);
+    }
+
     // Testzweck: PostgreSQL entscheidet einen konkurrierenden Erst-Claim über zwei Sessions
     // atomar und koppelt genau ein Auditereignis an den Gewinner.
     [Test]

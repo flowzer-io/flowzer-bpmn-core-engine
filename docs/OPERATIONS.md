@@ -274,6 +274,7 @@ E-Mail, Benutzername, Vorname und Nachname aus dem Standardprofil übernommen.
 | `IdentityDirectory__Realm` | zu lesender Realm |
 | `IdentityDirectory__ClientId` | vertrauliches Servicekonto nur fuer die benoetigten Leseoperationen |
 | `IdentityDirectory__ClientSecret` | ausschließlich zur Laufzeit aus dem Secret-Store; nie in `.env`, BPMN, Formularen oder Browserantworten speichern |
+| `IdentityDirectory__RootGroupId` | optionaler Installations-Scope über die stabile Keycloak-Gruppen-ID; leer behält den bestehenden realmweiten Abgleich |
 | `IdentityDirectory__SyncIntervalSeconds` | Intervall nach dem sofortigen Startlauf; 10 bis 86.400 Sekunden |
 
 Im authentifizierten Betrieb muss zusaetzlich
@@ -303,10 +304,50 @@ allerdings keine transaktionale Remote-Momentaufnahme; fuer sehr stark veraender
 bleibt ein spaeterer Event-/Delta-Abgleich sinnvoll.
 
 Eine Deaktivierung in Keycloak entfernt die Person nach dem nächsten erfolgreichen Lauf aus
-Auswahl und Suche, entzieht aber keinen Zugang: Ein bereits ausgestelltes Access-Token bleibt
+Auswahl und Suche, entzieht **ohne Installations-Scope** aber keinen Zugang: Ein bereits ausgestelltes Access-Token bleibt
 bis zu seinem Ablauf gültig, bei Bearer-Aufrufen zusätzlich um die Uhrentoleranz der
 JWT-Prüfung (Bibliotheksstandard fünf Minuten, nicht angepasst). Die Grenze ist durch die
 Abnahme in [docs/acceptance/auth.md](acceptance/auth.md) belegt.
+
+### Optionaler Gruppen-Scope einer Installation
+
+Mit nicht leerer `IdentityDirectory__RootGroupId` werden nur diese Gruppe und ihre
+Nachfahren geladen. Personen stammen aus deren Mitgliederlisten; globale User- und
+Rootgruppen-Kataloge werden nicht gelesen. Zugehörige Standardprofile werden genau
+einmal je Subject geladen, fremde Mitgliedschaften nicht übernommen. Ein während
+des Imports verlorenes Mitglied wird nicht mehr publiziert; eine neue unbekannte
+Untergruppe oder unvollständige Hierarchie verwirft den gesamten Lauf.
+Ein Slash im einzelnen Gruppennamen ist dagegen erlaubt. Die Driftprüfung
+berücksichtigt sowohl den Rohpfad als auch Keycloaks `~/`-Darstellung; Hierarchie
+und Rechte stammen weiterhin aus stabilen IDs und der Child-Route, nicht aus
+gezählten Pfadseparatoren. [Keycloak-Pfadvertrag](https://github.com/keycloak/keycloak/blob/main/server-spi-private/src/main/java/org/keycloak/models/utils/KeycloakModelUtils.java)
+Provider-IDs bleiben opaque und unverändert. Insbesondere sind
+[Keycloak-User-Storage-IDs](https://github.com/keycloak/keycloak/blob/main/docs/documentation/server_development/topics/user-storage/model-interfaces.adoc)
+mit Doppelpunkten und wohlgeformtem Unicode keine UUIDs. Vor Folgeabrufen werden
+unsichere URL-Segmente und fehlerhaftes UTF-16 abgewiesen; ein Escaping darf keinen
+anderen Identitätsschlüssel erzeugen. Die strengere 256-Zeichen-Konfigurationsgrenze
+für `RootGroupId` wird nicht auf externe User-Storage-IDs übertragen.
+
+Der Scope ist eine Zugangsgrenze, **kein Ersatz für Rollen oder Aufgabenrechte**.
+Jede Anwendungs-/Operator-/Worker-/KI-Policy und die Fallback-Policy benötigt dann
+zusätzlich eine aktive, eindeutige `iss`/`sub`-Person mit aktueller Mitgliedschaft im
+publizierten Teilbaum. Anzeigenamen, Token-Gruppen und Operatorrollen sind kein
+Fallback. Die reine BFF-Sitzungsverwaltung bleibt zur Abmeldung erreichbar.
+Ein früherer realmweiter Snapshot oder eine andere Wurzel öffnet die Installation
+nicht; bis zum ersten vollständigen passenden Import bleibt der Zugang geschlossen.
+Historische inaktive Directory-IDs bleiben für alte Vorgänge erhalten.
+
+Ein Rechteentzug wirkt nach dem nächsten **erfolgreichen** Directory-Abgleich auch
+mit einem noch gültigen Token. Bei Providerfehlern bleibt der letzte vollständige
+Stand erhalten; das Sync-Intervall ist deshalb Teil der Betriebsabnahme. Ein fehlender
+oder nicht lesbarer lokaler Stand öffnet keine Rechte. Auch technische Worker-Konten
+benötigen eine ausdrücklich freigegebene Mitgliedschaft; keine pauschale Servicekonto-
+oder Operatorausnahme. Scope ohne aktiven Abgleich oder ohne Authentifizierung wird
+beim Start abgewiesen. Leerer Scope verändert bestehende Installationen nicht.
+
+Für die TT-Demo ist die konkrete Wurzel-/Personalzuordnung separat freizugeben und
+gegen den gemeinsamen Realm zu prüfen. Diese Option legt selbst keine Gruppen,
+Mitgliedschaften oder TT-Abteilungsrechte an und aktiviert keine bestehende Installation.
 
 Nur Operatoren sehen `GET /identity-directory/status` und starten bei Bedarf
 `POST /identity-directory/sync`. Der Status enthaelt ausschließlich Zeitpunkte,

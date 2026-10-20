@@ -17,7 +17,7 @@ public sealed class BffAccessTokenClaimsValidator(FlowzerAuthenticationOptions o
         new(StringComparer.Ordinal)
         {
             "iss", "sub", "oid", "preferred_username", "email", "upn", "unique_name", "name",
-            "groups",
+            "groups", "azp",
             ClaimTypes.NameIdentifier, ClaimTypes.Email, ClaimTypes.Name, ClaimTypes.GroupSid
         };
 
@@ -127,6 +127,15 @@ public sealed class BffAccessTokenClaimsValidator(FlowzerAuthenticationOptions o
             || !string.Equals(idSubject, accessSubject, StringComparison.Ordinal))
         {
             throw new SecurityTokenValidationException("ID token and access token identify different subjects.");
+        }
+
+        // Nur der kryptografisch geprüfte Access-Token-Client. Vor Dedup prüfen:
+        // Auch zweimal derselbe Claim ist keine belegte eindeutige Providerantwort.
+        // ID-Token-azp steht absichtlich nicht auf dessen Anzeige-Allowlist.
+        try { _ = AuthorizedClientClaims.Read(accessPrincipal); }
+        catch (UnauthorizedAccessException)
+        {
+            throw new SecurityTokenValidationException("The OIDC access token client is invalid.");
         }
 
         var claims = accessPrincipal.Claims

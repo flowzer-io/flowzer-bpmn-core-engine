@@ -173,6 +173,12 @@ export interface CompleteUserTaskCommand {
   processInstanceId?: string | null;
   /** Verhindert den Abschluss eines zwischenzeitlich neu zugewiesenen Tasks. */
   expectedTaskRevision: number;
+  /** Bindet die angezeigte Subscription; eine andere oder leere Kennung bleibt verborgen. */
+  expectedUserTaskId?: string | null;
+  /** Bindet die unveränderliche Definitionsversion, auch bei Migration ohne Claimwechsel. */
+  expectedDefinitionId?: string | null;
+  /** Verlangt bei einer neuen Entscheidung tatsächliche persönliche Zuweisung, auch für Betreiber. */
+  requireAssignedToCurrentUser?: boolean;
   actionId?: string | null;
   data?: ProcessVariables | null;
 }

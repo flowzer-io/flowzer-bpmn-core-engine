@@ -30,6 +30,8 @@ public class Storage : IStorageSystem
         AiConnectionStorage = new AiConnectionStorage(this);
         AiRunStorage = new AiRunStorage(this);
         DecisionStorage = new DecisionStorage(this);
+        FormEmbedGrantStorage = new FormEmbedGrantStorage(this);
+        StartFormEmbedGrantStorage = new StartFormEmbedGrantStorage(this);
         InboundTriggerStorage = new InboundTriggerStorage(this);
     }
 
@@ -50,6 +52,8 @@ public class Storage : IStorageSystem
     public IAiRunStorage AiRunStorage { get; }
     public IDecisionStorage DecisionStorage { get; }
     public IInboundTriggerStorage InboundTriggerStorage { get; }
+    public IFormEmbedGrantStorage FormEmbedGrantStorage { get; }
+    public IStartFormEmbedGrantStorage StartFormEmbedGrantStorage { get; }
     public IDefinitionStorage DefinitionStorage { get; set; }
     public IFolderStorage FolderStorage { get; }
 
@@ -57,6 +61,7 @@ public class Storage : IStorageSystem
         new()
         {
             TypeNameHandling = TypeNameHandling.Auto,
+            Converters = [new StorageSystem.StorageVariableDataConverter()],
             TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Simple,
             SerializationBinder = new KnownStorageAssembliesBinder(),
             Formatting = Formatting.Indented

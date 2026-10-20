@@ -18,6 +18,7 @@ public class MessageTest
     {
         var testMessage = new Message { Name = string.Empty, TimeToLive = 60, CorrelationKey = "12345" };
         var instanceEngine = Helper.CreateProcessEngine(Process).StartProcess();
+        AssertCanonicalScope(instanceEngine);
         using (new AssertionScope())
         {
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
@@ -30,6 +31,7 @@ public class MessageTest
         }
         
         instanceEngine.HandleMessage(testMessage with { Name = "NachrichtBoundaryNI" });
+        AssertCanonicalScope(instanceEngine);
         
         using (new AssertionScope())
         {
@@ -37,11 +39,13 @@ public class MessageTest
             instanceEngine.ActiveTokens.Should().HaveCount(3);
             instanceEngine.ActiveCatchMessages.Should().HaveCount(2);
             instanceEngine.HandleServiceTaskResult("step2");
+            AssertCanonicalScope(instanceEngine);
             instanceEngine.ActiveTokens.Should().HaveCount(2);
             instanceEngine.ActiveCatchMessages.Should().HaveCount(2);
         }
         
         instanceEngine.HandleMessage(testMessage with { Name = "NachrichtBoundary"});
+        AssertCanonicalScope(instanceEngine);
         using (new AssertionScope())
         {
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
@@ -50,7 +54,9 @@ public class MessageTest
         }
         
         instanceEngine = Helper.CreateProcessEngine(Process).StartProcess();
+        AssertCanonicalScope(instanceEngine);
         instanceEngine.HandleServiceTaskResult("step1");
+        AssertCanonicalScope(instanceEngine);
         using (new AssertionScope())
         {
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
@@ -61,6 +67,7 @@ public class MessageTest
         }
         
         instanceEngine.HandleMessage(testMessage with { Name = "NachrichtReceive" });
+        AssertCanonicalScope(instanceEngine);
         using (new AssertionScope())
         {
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
@@ -69,6 +76,7 @@ public class MessageTest
         }
         
         instanceEngine.HandleMessage(testMessage with { Name = "NachrichtIntermediate" });
+        AssertCanonicalScope(instanceEngine);
         using (new AssertionScope())
         {
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
@@ -89,5 +97,23 @@ public class MessageTest
             instanceEngine.ActiveTokens.Should().BeEmpty();
             instanceEngine.Tokens.Should().HaveCount(3);
         }
+    }
+
+    // Testzweck: Ein echter Message-Start muss für Start- und Folgetokens denselben
+    // internen Master-Scope verwenden, nicht die getrennte Master-Token-Identität.
+    [Test]
+    public void MessageStart_ShouldKeepCanonicalScopeAcrossOutgoingTokens()
+    {
+        var instance = Helper.CreateProcessEngine(Process).HandleMessage(new Message { Name = "NachrichtStart" });
+        instance.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
+        instance.Tokens.Should().HaveCount(3);
+        AssertCanonicalScope(instance);
+    }
+
+    private static void AssertCanonicalScope(InstanceEngine instance)
+    {
+        var scope = instance.MasterToken.ProcessInstanceId;
+        scope.Should().NotBeEmpty().And.NotBe(instance.MasterToken.Id).And.NotBe(instance.InstanceId);
+        instance.Tokens.Should().OnlyContain(token => token.ProcessInstanceId == scope);
     }
 }

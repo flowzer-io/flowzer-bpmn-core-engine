@@ -198,14 +198,28 @@ public class DefinitionController(
         try
         {
             var (currentUser, canInspect) = await instanceAccess.GetPermissionsAsync();
+            // Alte Aufrufer behalten ihren bestehenden Requesthash. Neue gebundene
+            // Starts nehmen die Version ausdrücklich in den Idempotenzinhalt auf.
+            // Die optionale Herkunft braucht einen eigenen Inhaltsdomain, damit ein
+            // Legacy-Variablenobjekt sie nicht imitieren kann. Scope/Benutzer bleiben
+            // gleich: Entfernen oder Ändern eines Bezugs ist KEIN neuer Startkey.
+            object? payload = body?.ExternalReference is not null
+                ? new { expectedDefinitionId = body.ExpectedDefinitionId, externalReference = body.ExternalReference, variables = body.Variables }
+                : body?.ExpectedDefinitionId is { } expected
+                    ? new { expectedDefinitionId = expected, variables = body.Variables }
+                    : body?.Variables;
             var idempotency = HttpIdempotency.Create(Request, currentUser,
-                "workflow-start", id, body?.Variables);
+                "workflow-start", id, payload,
+                contentDomain: body?.ExternalReference is not null ? "external-reference-start:v1"
+                    : body?.ExpectedDefinitionId.HasValue == true ? "version-bound-start:v1" : null);
             var processInstance = await bpmnBusinessLogic.StartProcessInstance(id, body?.Variables,
-                initiator: currentUser.Identity, idempotency: idempotency);
+                initiator: currentUser.Identity, idempotency: idempotency,
+                expectedDefinitionId: body?.ExpectedDefinitionId, externalReference: body?.ExternalReference);
             var processInstanceDto = await processInstance.ToDtoAsync(storageSystem.DefinitionStorage, canInspect);
             return Ok(new ApiStatusResult<ProcessInstanceInfoDto>(processInstanceDto));
         }
-        catch (Exception exception) when (exception is UnauthorizedAccessException or WebApiEngine.Forms.FormSubmissionException or IdempotencyConflictException)
+        catch (Exception exception) when (exception is UnauthorizedAccessException or WebApiEngine.Forms.FormSubmissionException
+            or IdempotencyConflictException or WorkflowVersionConflictException)
         {
             throw;
         }
@@ -226,14 +240,16 @@ public class DefinitionController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ApiStatusResult<FormDto>>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiStatusResult<FormDto>>(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ApiStatusResult<FormDto>>> GetStartForm([FromRoute] string id)
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<FormDto>>> GetStartForm([FromRoute] string id,
+        [FromQuery] Guid? expectedDefinitionId = null)
     {
         BpmnBusinessLogic.StartFormReference startForm;
         try
         {
-            startForm = await bpmnBusinessLogic.GetStartFormReference(id);
+            startForm = await bpmnBusinessLogic.GetStartFormReference(id, expectedDefinitionId: expectedDefinitionId);
         }
-        catch (UnauthorizedAccessException)
+        catch (Exception exception) when (exception is UnauthorizedAccessException or WorkflowVersionConflictException)
         {
             throw;
         }
