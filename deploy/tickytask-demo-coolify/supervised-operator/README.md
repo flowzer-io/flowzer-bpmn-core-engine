@@ -2,8 +2,9 @@
 
 **Sourcearbeit, keine Ausführungserlaubnis.** Eigener Cool3-Demokontext, keine
 Production. Implementiert sind derzeit der begrenzte lokale Pipe-Transportkern
-und die einmalige Initial-/Restart-Sequenz mit injizierten Ports. Die SSH-/Docker-
-Zielprüfung, PGinit-/SQL-/Readinessadapter sind **noch nicht implementiert**.
+und die einmalige Initial-/Restart-Sequenz mit injizierten Ports. Hinzu kommen
+die reinen SQL-/Readinessprotokolle weiter unten. Vollständige SSH-/Docker-
+Zielprüfung und tatsächliche PGinit-/SQL-/Readiness-I/Oadapter sind **noch nicht implementiert**.
 Die Argumentbuilder sind nur Kanalfragmente ohne vollständige Auth-/Mount-/
 Netz-/Ressourcenbindung und dürfen nicht als Betriebsstart benutzt werden.
 Die vorherige Komposition `dae1b4d` bleibt ein eigener geprüfter
@@ -91,3 +92,29 @@ Eine eigene fremde/unklare Ressource wird weder übernommen noch gelöscht. Vor
 privater Nutzung müssen diese Adapter auf frisch gebundenen tatsächlichen
 Metadaten beruhen; es gibt keinen generischen Execute-Endpunkt oder frei
 konfigurierbaren Shelltransport. Der gegenwärtige Kern ist kein fertiger Installer.
+
+## Gebundene Protokolle für die konkreten Adapter
+
+`manual_postgres.py` bildet ausschließlich die unveränderten, SHA256-geprüften
+öffentlichen SQL01-/SQL02-Skripte auf einen begrenzten initialen stdin-Batch ab.
+Der relative Include wird im RAM ersetzt; es entsteht keine entfernte SQL- oder
+Passwortdatei. Rollen-/DBnamen bleiben fest, Passwörter werden nur als quotierte
+SQLdaten nach explizitem `standard_conforming_strings=on` eingesetzt. Alle
+Pakete müssen vor dem ersten Ressourcenwrite vorbereitet und auf16KiB begrenzt
+sein. Ein Restart verwendet diesen Initialpfad niemals. psql-Prompt-/Reconnect-/
+EOFverhalten und der Docker-/Logkanal sind trotz reiner Vertragstests noch
+nicht auf Linux mit synthetischen Passwörtern abgenommen. Insbesondere darf
+der spätere Adapter nicht einen beliebigen stderr-Text als Passwortprompt
+akzeptieren oder Rohfehler weitergeben.
+
+`manual_readiness.py` konsumiert den tatsächlichen Health-API-Vertrag und
+projiziert nur Healthy/Ready, PostgreSQL, UpToDate/Head22/Pending0, FEEL sowie
+anonymen401 auf Felder für `ApiProof`. Bodygröße, doppelte JSONschlüssel und
+bool/int-Verwechslung sind gesperrt. Unbekannte Healthdetails verlassen den
+Parser nicht. Die Containerhoheit muss vorher separat geprüft werden; eine
+positive Healthantwort ist kein Owner-, HTTPtransport- oder Runtimebeweis.
+
+Diese Module sind reine Protokollbausteine, weiterhin kein fertiger Installer.
+Persönliche Read-Probes und Root-Permits gehören **nicht** in einen öffentlichen
+Commit. Der generische Operator kennt weder persönliche Maschinenpfade noch
+private Permit-/Hostbindungen.
