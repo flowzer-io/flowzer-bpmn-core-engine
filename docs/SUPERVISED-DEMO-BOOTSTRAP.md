@@ -85,3 +85,12 @@ Ein persistenter operativer Feeder/Launcher ist nicht vorhanden. Zwei Wege:
 Ohne geprüften ersten Weg erfolgt kein privater Start. Insbesondere wird weder
 auf den unsicheren nativen Coolify-ENVpfad noch auf persistierte Secretdateien
 zurückgefallen. Dieser offen benannte Rest ist kein fehlgeschlagenes Demo-Deploy.
+
+## Implementierter Transport-/Sequenzkern, noch kein Installer
+
+Die [manuelle Operatorquelle](../deploy/tickytask-demo-coolify/supervised-operator/README.md)
+ergänzt nun begrenzte echte lokale Pipe-Fixtures und die einmalige Initial-/Restart-
+Sequenz über injizierte Ports. Sie startet bei Import/CLI keine privaten Dienste.
+Die vollständigen SSH-/Docker-/PG-/SQL-/Readinessadapter sind noch nicht implementiert;
+deshalb bleibt die private Runtimegrenze unverändert geschlossen. Insbesondere
+ersetzt ein erfolgreicher Fake-Portablauf keinen realen Head22-/Rollennachweis.
