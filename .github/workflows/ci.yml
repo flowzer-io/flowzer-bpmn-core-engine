@@ -48,6 +48,14 @@ jobs:
         with:
           global-json-file: global.json
 
+      # Derselbe paketfreie Runner wie lokal: keine API, Datenbank oder weitere Services.
+      - name: Paketfreie stdin-Startverträge prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/ci/test_startup_secret_ci.py
+          python3 -I -B scripts/ci/run_startup_secret_contracts.py --dotnet "$(command -v dotnet)" --temp-root "$RUNNER_TEMP"
+
       # Kein zusaetzlicher apt-get-Schritt fuer ClearScript/V8 noetig: Microsoft.ClearScript.
       # V8.Native.linux-x64 (siehe src/WebApiEngine.Tests, src/core-engine-tests) verlangt laut
       # readelf -d nur libc.so.6, libdl.so.2, libm.so.6, libpthread.so.0, librt.so.1 und
