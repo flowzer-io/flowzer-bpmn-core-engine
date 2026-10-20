@@ -243,7 +243,11 @@ class RuntimePorts:
     @port
     def observe(self):
         """Ziel/Image/Netz und gesamten erwarteten eigenen Bestand vor Secretlieferung lesen."""
-        require(self.state=='NEW');self._image();self._network()
+        require(self.state=='NEW')
+        # stdin-only CID/EOF-Kanal ist versionsspezifisch: Docker29 wartet weiter
+        # auf Containerexit. Unbekannte/neue Clients VOR Secret-/Ressourcenwrites sperren.
+        require(json.loads(self._call(['version','--format','{{json .Client.Version}}']))=='27.5.1')
+        self._image();self._network()
         for role in ['api','migrate']:
             require(not self._call(['ps','-a','--filter','name=^/'+self._name(role)+'$','--format','{{.ID}}']).strip())
         if self.mode=='initial':

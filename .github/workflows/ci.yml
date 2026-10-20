@@ -654,6 +654,14 @@ jobs:
           set -euo pipefail
           python3 -I -B tests/manual-runtime-channel/run_fixture.py --preflight-only
 
+      # Nur runtime-channel-v1: unabhängig authentifizierter Client27 im eigenen
+      # Runner-Temp, niemals Systeminstallation oder PATH-/Contextumschaltung.
+      - name: Exakt gebundenen temporären Client vorbereiten
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B tests/manual-runtime-channel/run_fixture.py --prepare-client-only
+
       - name: Reine Adapter- und eigene Fake-Formatterverträge
         shell: bash
         run: |

@@ -13,7 +13,8 @@ class Pipe:
     def exchange(self,argv,payload,secrets,**kw):
         args=shlex.split(argv[-1])[3:];self.calls.append((args,bytes(payload),list(secrets)));out=b'';err=b''
         if self.bad=='transport':raise t.TransportFailure('HANDLE_UNKNOWN',12345)
-        if args[:2]==['image','inspect']:
+        if args[:1]==['version']:out=json.dumps('29.8.2' if self.bad=='unsupported-client' else '27.5.1').encode()
+        elif args[:2]==['image','inspect']:
             isapi=args[2]=='sha256:'+'e'*64
             out=json.dumps(dict(id=args[2],os='linux',arch='arm64',**(dict(revision='f'*40,env=['PATH=/usr/bin:/bin'],labels=dict(BASE_LABELS,**({'flowzer.tt.demo.owner':'FOREIGN'} if self.bad=='image-owner' else {}))) if isapi else (dict(env=[]) if '.Config.Env' in args[-1] else {})))).encode()
         elif args[:2]==['network','inspect']:
@@ -201,6 +202,9 @@ class RuntimeTests(unittest.TestCase):
                 def exchange(inner,argv,payload,secrets,**kw):
                     args=shlex.split(argv[-1])[3:];result=native(argv,payload,secrets,**kw)
                     if '--format' not in args:return result
+                    # Dieser Formattertest modelliert den Zielclient27 separat; die
+                    # tatsächlich installierte29 ist kein positiver Runtimebeleg.
+                    if args[:1]==['version']:return result
                     seen.add(tuple(args[:2]));v=json.loads(result.stdout) if result.stdout else None
                     if args[:2]==['image','inspect']:
                         raw=dict(Id=v['id'],Os=v['os'],Architecture=v['arch'],Config=dict(Env=v.get('env',[]),Labels=v.get('labels',{})))
@@ -291,6 +295,13 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(delivered,[]);self.assertFalse(any(args[:2]==['container','run'] for args,_,_ in p.calls))
         ports,p=self.make();ports.observe();b=ports.accept_bundle(self.bundle());ports.initialize(b);ports.pg_start();ports.bootstrap(b);ports.pg_proof();p.bad='extra-label'
         with self.assertRaises(op.PortFailure):ports.migrate(ports.expected_migration)
+
+    def test_unsupported_cli29_stops_before_images_resources_and_secret_delivery(self):
+        # Testzweck: 27er-STDIN-Protokoll nicht still auf neue Clientsemantik übertragen.
+        ports,p=self.make();p.bad='unsupported-client';delivered=[]
+        with self.assertRaises(op.OperatorFailure):op.ManualOperator().run('initial',ports,lambda:delivered.append(True))
+        self.assertEqual(delivered,[]);self.assertEqual(len(p.calls),1)
+        self.assertEqual(p.calls[0][0],['version','--format','{{json .Client.Version}}'])
 
     def test_invalid_settings_block_before_remote_io(self):
         # Testzweck: keine Broadproxy-/fremdeRealm-/clearHTTP-/Rootuserbindung.

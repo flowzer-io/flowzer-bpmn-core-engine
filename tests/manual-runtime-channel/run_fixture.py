@@ -4,7 +4,7 @@ Default inert. Kein privater Host/Keycloak, kein neuer Imagebau. Derselbe besteh
 CI-Opt-in wählt exakt alten PGmodus oder diesen neuen kombinierten Modus. Reale
 Dockeraktionen benötigen darüber hinaus eine getrennte konkrete Root-Lease.
 """
-import importlib.util,sys,json,os,time,hashlib,re,uuid,dataclasses
+import importlib.util,sys,json,os,time,hashlib,re,uuid,dataclasses,tarfile,io,stat
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 S=ROOT/'deploy/tickytask-demo-coolify/supervised-operator'
@@ -19,7 +19,7 @@ API_ID='sha256:cd566e56e47e3b3125f8ae4734f7397c5672c804678dffd98ef8535106e1a559'
 CIDR='172.31.254.0/28'
 MAX_CONTAINERS=8;MAX_VOLUMES=3
 FILES=tuple(dict.fromkeys((*old.FILES,'tests/manual-runtime-channel/run_fixture.py','tests/manual-runtime-channel/test_fixture.py',
-    'tests/manual-runtime-channel/README.md','tests/manual-postgres-channel/test_ci_routing.py',
+    'tests/manual-runtime-channel/README.md','tests/manual-runtime-channel/docker-cli27-package.json','tests/manual-postgres-channel/test_ci_routing.py',
     *('deploy/tickytask-demo-coolify/supervised-operator/'+n+'.py' for n in ['manual_runtime_adapter','manual_operator','manual_readiness']))))
 
 
@@ -52,6 +52,128 @@ def source_guard(env):
     return p
 
 
+def package_pin():
+    """Öffentlicher Paketpin aus unabhängig geprüftem offiziellen GPG-Metadatenpfad."""
+    return json.loads((ROOT/'tests/manual-runtime-channel/docker-cli27-package.json').read_text())
+
+
+def client_from_package(raw,pin):
+    """Nur authentifizierte Paketbytes lesen und genau einen regulären Client liefern."""
+    require(type(raw) is bytes and len(raw)==pin['size'] and len(raw)<=16*1024*1024
+            and hashlib.sha256(raw).hexdigest()==pin['sha256'],'SOURCE')
+    require(raw.startswith(b'!<arch>\n'),'SOURCE');offset=8;members={}
+    while offset<len(raw):
+        header=raw[offset:offset+60];require(len(header)==60 and header[-2:]==b'`\n','SOURCE')
+        name=header[:16].decode('ascii').strip().removesuffix('/');size=int(header[48:58]);offset+=60
+        require(name in ('debian-binary','control.tar.xz','control.tar.gz','data.tar.xz') and name not in members and 0<=size<=16*1024*1024 and offset+size<=len(raw),'SOURCE')
+        members[name]=raw[offset:offset+size];offset+=size
+        if size%2:require(raw[offset:offset+1]==b'\n','SOURCE');offset+=1
+    require(offset==len(raw) and len(members)==3 and members.get('debian-binary')==b'2.0\n' and 'data.tar.xz' in members,'SOURCE')
+    found=None;expanded=0
+    with tarfile.open(fileobj=io.BytesIO(members['data.tar.xz']),mode='r|xz') as archive:
+        for index,item in enumerate(archive):
+            expanded+=item.size;require(index<512 and 0<=expanded<=96*1024*1024,'SOURCE')
+            name=item.name.removeprefix('./');require(not name.startswith('/') and '..' not in name.split('/'),'SOURCE')
+            if name=='usr/bin/docker':
+                require(found is None and item.isfile() and not item.issym() and not item.islnk() and 64<=item.size<=64*1024*1024,'SOURCE')
+                found=archive.extractfile(item).read(64*1024*1024+1);require(len(found)==item.size,'SOURCE')
+    require(found is not None and found[:7]==b'\x7fELF\x02\x01\x01' and found[18:20]==b'\x3e\0'
+            and len(found)==pin['binarySize'] and hashlib.sha256(found).hexdigest()==pin['binarySha256'],'SOURCE')
+    return found
+
+
+class ClientBinding:
+    """Geprüfte Pfadidentität und Source-Digest, kein globaler Dockerfallback.
+
+    Der unabhängig aus dem authentifizierten Paket abgeleitete Binärdigest steht
+    fest im Sourcepin; die mutable Bindingdatei ist dafür kein Vertrauensanker.
+    Der offene FD verhindert Path-Swap, nicht nachträgliche In-place-Schreibrechte
+    eines beliebigen gleich-UID-Prozesses. Der eigene Hostedrunner samt Source
+    bleibt vertrauenswürdig; dies ist keine Sandbox gegen dessen Benutzer.
+    """
+    def __init__(self,directory,facts,expected_sha=None):
+        self.directory=directory;self.facts=facts;self.expected_sha=expected_sha
+    def open_verified(self):
+        try:return self._open_verified()
+        except OSError:raise old.FixtureFailure('SOURCE') from None
+    def _open_verified(self):
+        parent=os.open(self.directory,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+        try:
+            st=os.fstat(parent);require(st.st_uid==os.getuid() and stat.S_IMODE(st.st_mode)==0o700,'SOURCE')
+            fd=os.open('docker',os.O_RDONLY|os.O_NOFOLLOW,dir_fd=parent)
+        finally:os.close(parent)
+        try:
+            before=os.fstat(fd);f=self.facts
+            require(stat.S_ISREG(before.st_mode) and before.st_nlink==1 and before.st_uid==os.getuid()
+                    and stat.S_IMODE(before.st_mode)==0o500 and (before.st_dev,before.st_ino,before.st_size)==(f['dev'],f['ino'],f['size']) and 64<=before.st_size<=64*1024*1024,'SOURCE')
+            digest=hashlib.sha256();header=os.read(fd,64);digest.update(header)
+            while True:
+                part=os.read(fd,1024*1024)
+                if not part:break
+                digest.update(part)
+            after=os.fstat(fd)
+            stable=lambda st:(st.st_dev,st.st_ino,st.st_nlink,st.st_uid,st.st_mode,st.st_size,st.st_mtime_ns,st.st_ctime_ns)
+            require(stable(before)==stable(after) and digest.hexdigest()==f['binarySha256']==self.expected_sha and header[:7]==b'\x7fELF\x02\x01\x01' and header[18:20]==b'\x3e\0','SOURCE')
+            os.lseek(fd,0,os.SEEK_SET);return fd
+        except BaseException:os.close(fd);raise
+
+
+def store_client(parent,raw,pin):
+    """Exklusiv nur Client und öffentliche Bindung speichern, keine Installation."""
+    binary=client_from_package(raw,pin);root=os.open(parent,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+    try:
+        st=os.fstat(root);require(st.st_uid==os.getuid() and not stat.S_IMODE(st.st_mode)&0o022,'SOURCE')
+        os.mkdir('flowzer-cli27-verified',0o700,dir_fd=root);directory=os.open('flowzer-cli27-verified',os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=root)
+    finally:os.close(root)
+    try:
+        fd=os.open('docker',os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o500,dir_fd=directory)
+        try:
+            with os.fdopen(fd,'wb',closefd=False) as stream:stream.write(binary);stream.flush();os.fsync(fd)
+            st=os.fstat(fd);facts=dict(version='27.5.1',packageSha256=pin['sha256'],binarySha256=hashlib.sha256(binary).hexdigest(),size=st.st_size,dev=st.st_dev,ino=st.st_ino)
+        finally:os.close(fd)
+        fd=os.open('binding.safe.json',os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o400,dir_fd=directory)
+        with os.fdopen(fd,'w') as stream:json.dump(facts,stream);stream.flush();os.fsync(stream.fileno())
+    finally:os.close(directory)
+    return ClientBinding(parent/'flowzer-cli27-verified',facts,pin['binarySha256'])
+
+
+def load_client(parent):
+    """Keine Suche über PATH/Systemconfig; nur eigene attestierte Runnerdateien."""
+    directory=parent/'flowzer-cli27-verified';d=os.open(directory,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+    try:
+        st=os.fstat(d);require(st.st_uid==os.getuid() and stat.S_IMODE(st.st_mode)==0o700,'SOURCE')
+        fd=os.open('binding.safe.json',os.O_RDONLY|os.O_NOFOLLOW,dir_fd=d)
+        try:
+            st=os.fstat(fd);require(st.st_uid==os.getuid() and st.st_nlink==1 and stat.S_ISREG(st.st_mode) and stat.S_IMODE(st.st_mode)==0o400 and st.st_size<=2048,'SOURCE')
+            raw=os.read(fd,2049)
+        finally:os.close(fd)
+    finally:os.close(d)
+    pin=package_pin();f=json.loads(raw);require(type(f) is dict and set(f)=={'version','packageSha256','binarySha256','size','dev','ino'} and f['version']=='27.5.1' and f['packageSha256']==pin['sha256']
+        and type(f['binarySha256']) is str and re.fullmatch('[a-f0-9]{64}',f['binarySha256']) and f['binarySha256']==pin['binarySha256'] and f['size']==pin['binarySize'] and all(type(f[k]) is int and f[k]>=0 for k in ['size','dev','ino']),'SOURCE')
+    binding=ClientBinding(directory,f,pin['binarySha256']);fd=binding.open_verified();os.close(fd);return binding
+
+
+def prepare_client(parent,guard):
+    """Späterer einziger gebundener öffentlicher Download, nie beim Import/PGmodus.
+
+    curl wird über denselben begrenzten Pipekern geführt. Nur öffentliche Bytes
+    gehen in einen vorab exklusiv geöffneten eigenen FD, nicht in Rohlogs.
+    """
+    guard();pin=package_pin();root=os.open(parent,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+    try:
+        st=os.fstat(root);require(st.st_uid==os.getuid() and not stat.S_IMODE(st.st_mode)&0o022,'SOURCE')
+        fd=os.open('flowzer-cli27-package.download',os.O_RDWR|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600,dir_fd=root)
+        try:
+            target='/proc/'+str(os.getpid())+'/fd/'+str(fd)
+            r=old.transport.BoundedPipe().exchange(['/usr/bin/curl','--disable','--proto','=https','--max-time','60','--max-filesize',str(16*1024*1024),'--fail','--silent','--show-error','--write-out','%{http_code}','--output',target,pin['url']],b'',[],timeout=65)
+            require(r.exit_code==0 and r.stdout==b'200' and not r.stderr,'SOURCE');guard()
+            require(os.fstat(fd).st_size==pin['size'],'SOURCE');os.lseek(fd,0,os.SEEK_SET)
+            with os.fdopen(os.dup(fd),'rb') as stream:raw=stream.read(16*1024*1024+1)
+            return store_client(parent,raw,pin)
+        finally:os.close(fd);os.unlink('flowzer-cli27-package.download',dir_fd=root)
+    finally:os.close(root)
+
+
 def public_settings():
     """Absichtlich nur eigener Loopback, ohne externe IdP-Anfrage oder TLSlockerung.
 
@@ -68,8 +190,29 @@ class CombinedPipe(old.LocalDockerPipe):
         super().__init__(guard,plan);self.end=time.monotonic()+420
         self.namespace='flowzer-runtime-'+plan['nonce'];self.names=[self.namespace]
         self.restart_nonce=hashlib.sha256((plan['nonce']+'restart').encode()).hexdigest()[:32]
-        self.network=None;self.image_labels=None;self.cleanup_done=None
+        self.network=None;self.image_labels=None;self.cleanup_done=None;self.cli_version=None;self.client=None;self.transport_code=None;self.transport_command=None
+        owner=self
+        class ObservedPipe(old.transport.BoundedPipe):
+            # Nur feste Diagnose beobachten; Originalargumente/Return/Exception
+            # sowie gesamter Transport-/Cleanupalgorithmus bleiben unverändert.
+            def exchange(self,argv,payload,secrets,**kwargs):
+                fd=None
+                try:
+                    require(argv[:3]==['/usr/bin/docker','--host','unix:///var/run/docker.sock'] and isinstance(owner.client,ClientBinding),'SOURCE')
+                    fd=owner.client.open_verified()
+                    # Der geprüfte FD bleibt bis zum terminalen Pipeabschluss offen.
+                    # close_fds im unveränderten Transport braucht kein pass_fds:
+                    # /proc/des lebenden eigenen Parents bindet denselben Inode.
+                    args=list(argv);args[0]='/proc/'+str(os.getpid())+'/fd/'+str(fd)
+                    return super().exchange(args,payload,secrets,**kwargs)
+                except old.transport.TransportFailure as error:
+                    if owner.transport_code is None:owner.transport_code=error.code;owner.transport_command=owner.command
+                    raise
+                finally:
+                    if fd is not None:os.close(fd)
+        self.pipe=ObservedPipe()
     def command_id(self,args):
+        if args==['--version'] or args[:1]==['version']:return 'CLI_VERSION'
         if args[:2]==['container','run']:return 'APP_START' if '--entrypoint' not in args else super().command_id(args)
         if args[0]=='network':
             require(args[1] in ('ls','inspect','create','rm'));return 'NETWORK_'+args[1].upper()
@@ -116,6 +259,10 @@ class CombinedPipe(old.LocalDockerPipe):
         rows={v['id']:v for v in self.owned()};require(all(not rows[c]['running'] for c in cids),'CLEANUP')
     def prepare(self):
         """Nur veröffentlichte immutable Images und ein frisches eigenes nichtinternes Netz."""
+        self.client=load_client(Path(os.environ['RUNNER_TEMP']))
+        version=self.checked(['--version'])
+        match=re.fullmatch(rb'Docker version ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})(?:[-+][A-Za-z0-9.-]{1,40})?, build [A-Za-z0-9.-]{1,80}\r?\n?',version)
+        require(match is not None and len(version)<=256 and match[1]==b'27.5.1');self.cli_version=match[1].decode('ascii')
         for image,pin,revision in [(old.IMAGE,old.IMAGE_ID,None),(API_IMAGE,API_ID,API_SOURCE)]:
             self.checked(['image','pull','--quiet','--platform=linux/amd64',image],timeout=90)
             fmt='{"id":{{json .ID}},"os":{{json .Os}},"arch":{{json .Architecture}},"revision":{{json (index .Config.Labels "org.opencontainers.image.revision")}},"labels":{{json .Config.Labels}}}'
@@ -205,11 +352,21 @@ def run(plan,guard):
     """Echte Initial-/Restartfolge, aber nur nach separater Hosted-Dispatchfreigabe."""
     port=CombinedPipe(guard,plan);ports=[];values={};proof=dict(kind='SYNTHETIC_COMBINED_RUNTIME_CHANNEL',sourceSha=plan['sha'],sourceTree=plan['tree'],
         nonce=plan['nonce'],apiSourceSha=API_SOURCE,apiImage=API_IMAGE,apiImageId=API_ID,pgImage=old.IMAGE,pgImageId=old.IMAGE_ID,
-        architecture='linux/amd64',initial=False,activeApiBlocked=False,restart=False,expectedHead=22,actualHead=None,feel=False,anonymous401=False,result='FAIL',cleanup='UNKNOWN',ownHandles=0)
+        architecture='linux/amd64',dockerCliVersion=None,dockerCliPackageSha256=None,dockerCliBinarySha256=None,migrationVerified=False,transportFailure=None,initial=False,activeApiBlocked=False,restart=False,expectedHead=22,actualHead=None,feel=False,anonymous401=False,result='FAIL',cleanup='UNKNOWN',ownHandles=0)
     try:
-        port.prepare();b,r=bindings(port);target=pg.SshTarget('192.0.2.8','synthetic.invalid','/synthetic/known_hosts')
+        port.prepare();proof['dockerCliVersion']=port.cli_version
+        if isinstance(port.client,ClientBinding):proof.update(dockerCliPackageSha256=port.client.facts['packageSha256'],dockerCliBinarySha256=port.client.facts['binarySha256'])
+        b,r=bindings(port);target=pg.SshTarget('192.0.2.8','synthetic.invalid','/synthetic/known_hosts')
         values={k:'synthetic-'+k+'-'+uuid.uuid4().hex+";'\\" for k in ['admin','migration','runtime','bff','directory']}
-        initial=runtime.RuntimePorts(b,r,target,guard,mode='initial',pipe=port);ports.append(initial)
+        class Milestones(runtime.RuntimePorts):
+            # Kein eigener Migrationspfad: Originalbeleg nur beobachten und
+            # erst nach vollständiger typ-/wertsicherer Validierung projizieren.
+            def migrate(self,packet):
+                value=super().migrate(packet)
+                if isinstance(value,op.MigrationProof) and all(type(v) is int for v in (value.exit_code,value.head,value.pending)) and (value.exit_code,value.head,value.pending)==(0,22,0) and value.terminal is True and value.output_eof is True:
+                    proof.update(migrationVerified=True,actualHead=22)
+                return value
+        initial=Milestones(b,r,target,guard,mode='initial',pipe=port);ports.append(initial)
         first=op.ManualOperator().run('initial',initial,lambda:initial.accept_bundle(op.SecretBundle(**values)))
         proof.update(initial=True,actualHead=22,feel=True,anonymous401=True)
         newr=dataclasses.replace(r,attempt_nonce=port.restart_nonce,prior_api_nonce=plan['nonce'])
@@ -219,7 +376,7 @@ def run(plan,guard):
         prove_active_api_block(b,newr,target,guard,port,initial.pg.pg_cid,first.api_cid)
         proof['activeApiBlocked']=True
         port.stop_registered([first.api_cid,initial.pg.pg_cid])
-        restarted=runtime.RuntimePorts(b,newr,target,guard,mode='restart',pipe=port,prior_pg_cid=initial.pg.pg_cid,prior_api_cid=first.api_cid);ports.append(restarted)
+        restarted=Milestones(b,newr,target,guard,mode='restart',pipe=port,prior_pg_cid=initial.pg.pg_cid,prior_api_cid=first.api_cid);ports.append(restarted)
         op.ManualOperator().run('restart',restarted,lambda:restarted.accept_bundle(op.SecretBundle(**dict(values,admin=None))))
         proof.update(restart=True,result='PASS')
     except BaseException as e:
@@ -230,15 +387,20 @@ def run(plan,guard):
     finally:
         for p in ports:p.close()
         values.clear();proof['cleanup']=port.cleanup()
+        if port.transport_code:proof['transportFailure']=dict(code=port.transport_code,command=port.transport_command)
         if port.local_pid:proof.update(result='FAIL',ownHandles='UNKNOWN',ownLocalPid=port.local_pid)
         if proof['cleanup']!='ABSENT':proof.update(result='FAIL',ownHandles='UNKNOWN')
     return proof
 
 
 def main():
-    if sys.argv[1:] not in (['--preflight-only'],['--once']):print('RUNTIME_CHANNEL_SOURCE_ONLY');return 0
+    if sys.argv[1:] not in (['--preflight-only'],['--once'],['--prepare-client-only']):print('RUNTIME_CHANNEL_SOURCE_ONLY');return 0
     try:
         plan=source_guard(os.environ)
+        if sys.argv[1:]==['--prepare-client-only']:
+            if plan['mode']=='pg-channel-v1':print('PG_MODE_NO_CLIENT_DOWNLOAD');return 0
+            prepare_client(Path(os.environ['RUNNER_TEMP']),lambda:source_guard(os.environ))
+            print('VERIFIED_CLI27_CLIENT_PREPARED');return 0
         if plan['mode']=='pg-channel-v1':return old.main()
         if sys.argv[1:]==['--preflight-only']:print('RUNTIME_CHANNEL_PREFLIGHT_OK');return 0
         parent=Path(os.environ['RUNNER_TEMP']);fd=os.open(parent,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)

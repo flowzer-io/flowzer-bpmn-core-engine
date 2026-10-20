@@ -1,0 +1,14 @@
+{
+  "version": "27.5.1",
+  "architecture": "amd64",
+  "url": "https://download.docker.com/linux/ubuntu/dists/noble/pool/stable/amd64/docker-ce-cli_27.5.1-1~ubuntu.24.04~noble_amd64.deb",
+  "size": 15235356,
+  "sha256": "cf45b119c819bf5a19dbd9a943d33d4a0b0731b461de1b6cc51d0eb57a822ab7",
+  "trustAnchorFingerprint": "9DC858229FC7DD38854AE2D88D81803C0EBFCD88",
+  "signingFingerprint": "D3306A018370199E527AE7997EA0A9C3F273FCD8",
+  "signedInReleaseSha256": "759960a250d73977abb741091239aa29f25baf7cbd62287e6754045b3b827185",
+  "signedPackagesSha256": "5c3cf65860f9f82950bbbddd4fa922d161f7ab16dad4824472c97f6d18627af4",
+  "documentation": "https://docs.docker.com/engine/install/ubuntu/",
+  "binarySha256": "c48d48fe308ada474242812a4aaf9652af1e43e48987ef59b3f13a15a2db5be1",
+  "binarySize": 41798992
+}

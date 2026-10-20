@@ -83,3 +83,54 @@ bindungen bleiben unverändert. Der historische erste kombinierte Hostedversuch
 39512694409 scheiterte beim Migratorreadback; dessen Cleanup bleibt UNKNOWN,
 nicht nachträglich zu ABSENT umgedeutet. Dieser Sourcefix ist noch kein neuer
 nativer Beleg.
+
+## Versionsgebundener Client27, kein Systemdowngrade
+
+Der STDIN-only-Kanal ist zunächst ausdrücklich nur für **DockerCLI27.5.1**
+qualifizierbar. DockerCLI29 wartet in diesem Fall nach Eingabe-EOF auf das
+Containerende und liefert keine frühe CID. Ein echter eigener AF_UNIX-Fake
+reproduziert das als **negativen29-Kompatibilitätsbeleg**, nicht als27-Nachweis.
+Die spätere echte27-Positivprobe ist im gebundenen Hostedlauf Pflicht. Der
+historische Cool3-Client27-Snapshot ersetzt keine frische private Attestierung.
+`RuntimePorts.observe` sperrt alle nicht exakt27.5.1 meldenden Clients vor
+Ressourcen-/Secretaktionen. Kein spekulatives `--detach` oder `start -i`.
+
+Nur `runtime-channel-v1` bereitet über `--prepare-client-only` einen temporären
+Client vor. Der alte PGmodus bleibt ohne Download. Der öffentliche Paketpin
+`docker-cli27-package.json` wurde unabhängig über offiziellen Docker-Trustanchor,
+GPG-validierte InRelease und deren authentifizierten Packages-Digest geprüft.
+Das exakt15235356Byte große Ubuntu24.04/amd64-CLI27.5.1-Paket ist mit SHA256
+`cf45b119c819bf5a19dbd9a943d33d4a0b0731b461de1b6cc51d0eb57a822ab7`
+gebunden, nicht bloß durch den späteren Download selbst gehasht.
+
+Der spätere einzige HTTPS-Download ist auf60 Sekunden/16MiB/HTTP200 begrenzt,
+ohne Redirect-/Paket-/Programm-Fallback. Nach vollständiger Paketauthentifizierung
+wird ausschließlich der reguläre ELF64LE/amd64-Client `usr/bin/docker` extrahiert
+(max64MiB, höchstens512 Archiveinträge/96MiB expandiert). Keine Systeminstallation,
+kein sudo, kein globaler PATH-/Kontext-/Konfigurationswechsel, kein Appimagebau.
+Im exklusiven eigenen `RUNNER_TEMP/flowzer-cli27-verified` gelten Verzeichnismodus
+0700, Client0500, öffentliche Bindingdatei0400, eigener UID und genau ein Link.
+Der unabhängig aus dem signierten Paket abgeleitete Binärdigest steht ebenfalls
+fest im Sourcepin:41798992Bytes, SHA256
+`c48d48fe308ada474242812a4aaf9652af1e43e48987ef59b3f13a15a2db5be1`.
+Die unabhängige DATA-only-Prüfung desselben signiert authentifizierten Pakets
+hat ausschließlich diese reguläre ELF im RAM gelesen, nicht ausgeführt.
+Ein gemeinsam geänderter Client und Binding-Selbsthash wird
+damit abgewiesen. Vor jeder Verwendung werden Inode/Device/Größe/Modus/SHA
+gegen diesen Pin geprüft und derselbe
+geöffnete FD über den lebenden eigenen Parent bis zum terminalen Pipeabschluss
+gehalten. Alle übrigen Dockerargumente, Secretkanäle und Transportgrenzen bleiben
+unverändert; auf die ungebundene System-CLI wird niemals zurückgefallen. Der FD
+bindet die Pfadidentität, versiegelt aber nicht den Inode gegen spätere In-place-
+Änderungen eines gleich-UID-Prozesses. Der eigene Runner einschließlich Source
+ist vertrauenswürdig; dies ist keine Isolation gegen beliebigen Code desselben
+Benutzers oder Root. Diese Vertrauensgrenze wird nicht als Sandbox attestiert.
+
+Der Safeproof projiziert künftig die tatsächliche numerische CLIversion und
+öffentliche Paket-/Binärdigests, den ersten unveränderten festen Transportcode
+mit seinem festen Kommandocode sowie einen tatsächlich validierten terminalen
+Head22-Migrationsmeilenstein sofort. Keine Rohfehler, Header, Konfigurationen,
+Body-/Secretbytes oder Secret-Hashes. Die alten fehlenden Diagnosen/`actualHead`
+null werden nicht rückwirkend umgedeutet. Der zweite historische Hostedlauf
+39513937719 bleibt API_START FAILURE, damals Cleanup tatsächlichABSENT; die
+konkrete damalige CLIversion/Transportursache ist im alten Proof nicht enthalten.
