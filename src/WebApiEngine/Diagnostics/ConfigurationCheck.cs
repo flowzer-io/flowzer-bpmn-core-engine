@@ -531,7 +531,7 @@ public static class ConfigurationCheck
     /// Zerlegt eine Verbindungszeichenfolge in eine nicht geheime Kurzbeschreibung und ergaenzt
     /// knappe Zeitgrenzen fuer die Probe. Das Passwort wird nie ausgegeben.
     /// </summary>
-    private static bool TryDescribeConnection(
+    internal static bool TryDescribeConnection(
         string connectionString,
         out string description,
         out string probeConnectionString,
@@ -549,11 +549,11 @@ public static class ConfigurationCheck
             error = string.Empty;
             return true;
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             description = "unbekannt";
             probeConnectionString = string.Empty;
-            error = exception.Message;
+            error = "Ungültige PostgreSQL-Verbindungszeichenfolge; Konfiguration prüfen.";
             return false;
         }
     }

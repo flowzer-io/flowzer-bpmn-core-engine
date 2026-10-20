@@ -1,6 +1,12 @@
 # Flowzer-Demo auf Cool3 – getrennte Coolify-Sourcekonfiguration
 
-**Sourcekandidat, keine Runtimefreigabe.** Christian hat am 15.10.2026 einen bestehenden
+**Sourcekandidat, keine Runtimefreigabe.** Der native ENV-Startpfad ist wegen
+des belegten Coolify-Fehlerkanals für echte Secrets gesperrt. Der neue
+[manuelle stdin-Start-/Restartvertrag](../../docs/SUPERVISED-DEMO-BOOTSTRAP.md)
+ist ein separater Source-Vertrag, noch kein operativer Launcher. Dieses Manifest
+wurde nicht still darauf umgestellt.
+
+ Christian hat am 15.10.2026 einen bestehenden
 Coolify-Host mit Reserve statt Dev01-Erweiterung oder VM-Buchung gewählt. Der
 Demo-Koordinator bindet **cool3.maass.it**, nicht Cool4 (bestehendes Flowzer-Production).
 Der alte [Dev01-Kandidat](../tickytask-demo/README.md) wird nicht eingesetzt.

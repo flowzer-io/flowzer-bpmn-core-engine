@@ -1,5 +1,14 @@
 # Begrenzter stdin-Bootstrap (Source-Prototyp)
 
+## Aktueller Folgevertrag
+
+Der lokale komponierte Source folgt dem [manuellen Start-/Restartvertrag](SUPERVISED-DEMO-BOOTSTRAP.md).
+Der isolierte x64-Pilot `39482867524/a1` bestand vollständig; das ist keine
+private ARM64-/TT-/Demoabnahme. Die folgende ursprüngliche Prototypbeschreibung
+ist historisch zu lesen. Die Produktquelle validiert nun zusätzlich fehlerhafte
+Npgsql-Syntax ohne Treiberexception; Details und verbleibender Betriebslauncher
+stehen im Folgevertrag.
+
 ## Stand und Sicherheitsgrenze
 
 Dieser opt-in API-/Migrator-Bootstrap wurde für den isolierten TT-Demo-Pfad

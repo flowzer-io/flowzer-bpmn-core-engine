@@ -53,7 +53,7 @@ public partial class PostgreSqlStorageIntegrationTest
     }
 
     // Testzweck: `--migrate` (RunMigrationsAsync) faengt die gescheiterte Migration, liefert
-    // Exit-Code 1 und protokolliert genau eine Fehlerzeile mit Migration, Version, Ausnahmetyp
+    // Exit-Code 1 und protokolliert genau eine Fehlerzeile mit Version, sicherer Fehlerkategorie
     // und SQLSTATE. Es meldet keine angewendete Migration, laesst das Formularbindungs-Upgrade
     // aus und die Historie unveraendert.
     [Test]
@@ -72,11 +72,11 @@ public partial class PostgreSqlStorageIntegrationTest
             exitCode.Should().Be(FlowzerStorageExtensions.MigrationFailedExitCode).And.Be(1);
             var error = logger.Entries.Should().ContainSingle(entry => entry.Level == LogLevel.Error).Which;
             error.Message.Should()
-                .Contain("019_inbound_triggers").And
                 .Contain("version 19").And
                 .Contain("Npgsql.PostgresException").And
-                .Contain("SqlState 42703").And
-                .Contain("column \"trigger_key\" does not exist");
+                .Contain("SqlState 42703");
+            error.Exception.Should().BeNull();
+            error.Message.Should().NotContain("trigger_key");
             logger.Entries.Should().NotContain(entry => entry.Message.Contains("Applied"));
             logger.Entries.Should().NotContain(entry => entry.Message.Contains("Formularbindungen"));
 

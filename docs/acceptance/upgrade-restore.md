@@ -1,3 +1,9 @@
+> **Historischer Abnahmestand:** Die unten protokollierten Ergebnisse mit Head20/34
+> Tabellen stammen vom damaligen Source. Die lokale TT-/stdin-Komposition enthält
+> nun die eingebetteten Migrationen001..022 (zusätzlich Grant-Tabellen). Dieser
+> Altbeleg ist keine aktuelle Upgrade-/Restore-/Tabellenzahlabnahme. Das Rig wurde
+> im Source-Follow-up nicht ausgeführt; insbesondere ist es keine Demo-Resetfreigabe.
+
 # Abnahme: Aktualisierung mit laufenden Instanzen und Wiederherstellung (R2b)
 
 Protokoll des Pakets R2b „Upgrade-/Restore-Rig“. Geprüft wird mit **echten Images** im

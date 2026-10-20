@@ -1,3 +1,5 @@
+using Npgsql;
+
 namespace PostgreSqlStorageSystem;
 
 /// <summary>
@@ -34,6 +36,15 @@ public sealed class PostgreSqlStorageOptions
             throw new InvalidOperationException("Storage:PostgreSql:ConnectionString must be set when Storage:Provider is 'PostgreSql'.");
         }
 
+        // #375: Der Npgsql-Parser kann unbekannte Schlüssel aus einer falsch gequoteten
+        // Passwortzeichenfolge im Ausnahmetext wiederholen. Vor jedem API-/Migratorstart
+        // prüfen und eine feste Meldung OHNE InnerException nach außen reichen.
+        ValidateConnectionString(ConnectionString, "Storage:PostgreSql:ConnectionString");
+        if (!string.IsNullOrWhiteSpace(MigrationConnectionString))
+        {
+            ValidateConnectionString(MigrationConnectionString, "Storage:PostgreSql:MigrationConnectionString");
+        }
+
         if (string.IsNullOrWhiteSpace(Schema)
             || Schema.Length > 63
             || !(char.IsAsciiLetterLower(Schema[0]) || Schema[0] == '_')
@@ -43,4 +54,17 @@ public sealed class PostgreSqlStorageOptions
             throw new InvalidOperationException("Storage:PostgreSql:Schema must start with a lowercase letter or underscore, consist of lowercase letters, digits or underscores, and must not start with 'pg_'.");
         }
     }
+    private static void ValidateConnectionString(string value, string setting)
+    {
+        try
+        {
+            _ = new NpgsqlConnectionStringBuilder(value);
+        }
+        catch (Exception exception) when (exception is ArgumentException or FormatException or OverflowException)
+        {
+            // setting wird ausschließlich an den beiden festen Aufrufstellen bestimmt.
+            throw new InvalidOperationException($"{setting} has invalid PostgreSQL connection string syntax.");
+        }
+    }
+
 }

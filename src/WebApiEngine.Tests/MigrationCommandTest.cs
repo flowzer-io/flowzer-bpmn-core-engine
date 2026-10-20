@@ -30,12 +30,12 @@ public class MigrationCommandTest
             entry.Level == LogLevel.Error
             && entry.Message.Contains("Migration step failed")
             && entry.Message.Contains("System.InvalidOperationException")
-            && entry.Message.Contains("Storage:Provider"));
+            && entry.Exception == null);
     }
 
     // Testzweck: Ist die Datenbank nicht erreichbar, endet `--migrate` ebenfalls mit Exit-Code 1
-    // und nennt den Ausnahmetyp (NpgsqlException) statt abzustuerzen. Die Ausnahme haengt fuer die
-    // Diagnose an der Logzeile, und weder Zeile noch Ausnahme tragen das Passwort der
+    // und nennt den Ausnahmetyp (NpgsqlException) statt abzustuerzen. Die Ausnahme wird gerade nicht an die
+    // Logzeile angehängt; die feste Fehlerkategorie enthält kein Passwort der
     // Verbindungszeichenfolge. Port 1 auf der Loopback-Schnittstelle weist die Verbindung sofort
     // ab; es wird nichts ausser dem Verbindungsversuch ausgefuehrt.
     [Test]
@@ -49,9 +49,8 @@ public class MigrationCommandTest
         var entry = logger.Entries.Should().ContainSingle().Which;
         entry.Level.Should().Be(LogLevel.Error);
         entry.Message.Should().Contain("Migration step failed").And.Contain("Npgsql.NpgsqlException");
-        entry.Exception.Should().BeAssignableTo<Npgsql.NpgsqlException>();
+        entry.Exception.Should().BeNull();
         entry.Message.Should().NotContain(UnreachablePassword);
-        entry.Exception!.ToString().Should().NotContain(UnreachablePassword);
     }
 
     // Testzweck: Ein Abbruch (bereits ausgeloestes Token, wie nach SIGTERM) ist kein

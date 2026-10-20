@@ -137,7 +137,10 @@ Bytegleichheit. Keine Produkt-, Auth-, Migrations-, RollForward- oder
 ENV-Allowliständerung. Der Träger liest die tatsächlichen Build-Pins und neue
 lokale Image-ID, validiert Runtimeconfigs und bildet erst dann die persönliche
 19-Feld-Openingdatei des bestehenden Parents mit maximal300sTTL. Der erwartete
-Migrationsstand ist **20**, nicht der unabhängige21-Beispielwert der Fakes.
+Migrationsstand war auf main **20**. In der jetzigen TT-Komposition ist er
+quellgebunden **22**, nicht der unabhängige21-Beispielwert der Fakes.
+Der positive Lauf39482867524/a1 bleibt ein historischer main-/Head20-Beleg,
+kein tatsächlicher Positivlauf dieser neuen Komposition.
 Die gepinnten Images verwenden PG-UID999 und ASP-UID1654, gemeinsamen GID22000;
 Root muss diese konkrete Auswahl mit dem Image-/Socketvertrag freigeben.
 

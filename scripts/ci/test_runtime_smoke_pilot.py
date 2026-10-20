@@ -140,7 +140,7 @@ class CarrierTests(unittest.TestCase):
                 if failure:
                     with self.assertRaises((ValueError,subprocess.CalledProcessError,subprocess.TimeoutExpired,r.shared.ToolCleanupUnknown)):
                         r.execute(l,work,Path('/PUBLIC/docker'),lambda:100,report)
-                else:self.assertEqual(r.execute(l,work,Path('/PUBLIC/docker'),lambda:100,report)['expectedMigration'],20)
+                else:self.assertEqual(r.execute(l,work,Path('/PUBLIC/docker'),lambda:100,report)['expectedMigration'],22)
             state['stdout']=captured.getvalue()
             if failure=='source':resources.assert_not_called()
             else:resources.assert_called()
@@ -149,11 +149,16 @@ class CarrierTests(unittest.TestCase):
 
     def test_exact_public_preparation_and_existing_bound_run(self):
         # Testzweck: Ein Vorbereiten und genau ein vorhandener Parentaufruf; keine neue Runtimeabstraktion.
+        # Testzweck: Der komponierte Source enthält 001..022; kein stilles Beibehalten
+        # des erfolgreichen, aber nur main-basierten x64-Pilotheads20.
+        versions=sorted(int(p.name.split('_')[0]) for p in
+                        (ROOT/'src/PostgreSqlStorageSystem/Migrations').glob('*.sql'))
+        self.assertEqual(versions,list(range(1,23)))
         calls,state=self.invoke()
         self.assertEqual(sum('pull' in c[0] for c in calls),3);self.assertEqual(sum('build' in c[0] for c in calls),1)
         self.assertEqual(sum('--bound-run' in c[0] for c in calls),1)
         self.assertFalse(any('push' in c[0] or 'login' in c[0] or 'run' in c[0] for c in calls))
-        b=state['binding'];self.assertEqual(b['expectedMigration'],20);self.assertEqual(b['runtime'],'10.0.13')
+        b=state['binding'];self.assertEqual(b['expectedMigration'],22);self.assertEqual(b['runtime'],'10.0.13')
         self.assertEqual(b['apiImage'],'sha256:'+'5'*64);self.assertEqual(len(b),19)
         self.assertTrue(all('GITHUB_TOKEN' not in env and 'LD_PRELOAD' not in env for _,env,_ in calls))
 
@@ -311,8 +316,12 @@ class ParentProjectionTests(unittest.TestCase):
         self.assertNotIn('home',p);self.assertEqual(p['diagnostic']['candidates'][0]['ownership'],'UNKNOWN')
         d=r.PilotDiagnostics();d.bind_artifacts(dict(sourceSha='b'*40,sourceTree='c'*40,nonce='a'*32,
             image='sha256:'+'5'*64,inventorySHA256='4'*64,apiSHA256='1'*64,feederSHA256='2'*64,
-            nativeSHA256='3'*64,dockerSHA256='6'*64,daemonIdSHA256='7'*64,runtime='10.0.13',expectedMigration=20))
+            nativeSHA256='3'*64,dockerSHA256='6'*64,daemonIdSHA256='7'*64,runtime='10.0.13',expectedMigration=22))
         self.assertEqual(d.snapshot()['artifacts']['nativeSHA256'],'3'*64)
+        # Testzweck: Der alte Head20 oder bool sind kein gültiger aktueller Provenienzbeleg.
+        for stale in [20,True,23]:
+            with self.assertRaises(ValueError):
+                d.bind_artifacts(dict(d.snapshot()['artifacts'],expectedMigration=stale))
         _,state=CarrierTests().invoke('parent_valid',diagnostic=True);d=state['diagnostic']
         self.assertEqual(d['parent']['state'],'VALIDATED');self.assertEqual(d['artifacts']['nativeSHA256'],'3'*64)
         self.assertEqual(d['failurePhase'],'PARENT');self.assertEqual(d['ownNames'],'ABSENT')

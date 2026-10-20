@@ -58,8 +58,8 @@ public static class FlowzerStorageExtensions
 
     /// <summary>
     /// Der Migrationsschritt `--migrate`: SQL-Migrationen, danach das Formularbindungs-Upgrade.
-    /// Liefert 0 bei Erfolg. Jeder Fehler wird hier gefangen, als eine Fehlerzeile mit Ursache
-    /// (Ausnahmetyp, SQLSTATE, bei einer Migration deren Name und Version) protokolliert und als
+    /// Liefert 0 bei Erfolg. Jeder Fehler wird hier gefangen, als eine sichere Fehlerzeile
+    /// (endliche Fehlerkategorie/SQLSTATE, bei einer Migration deren Version) protokolliert und als
     /// <see cref="MigrationFailedExitCode"/> zurueckgegeben; ein Abbruch ueber
     /// <paramref name="cancellationToken"/> ist kein Fehler, sondern eine Warnung und
     /// <see cref="MigrationCancelledExitCode"/>. Eine unbehandelte Ausnahme endet in
@@ -73,11 +73,11 @@ public static class FlowzerStorageExtensions
             await ApplyMigrationsAsync(configuration, logger, cancellationToken);
             return 0;
         }
-        catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             // Das Token erreicht nur den Migrator; dessen Transaktion ist beim Abbruch verworfen.
             // Das Formularbindungs-Upgrade danach beachtet das Token nicht und laeuft zu Ende.
-            logger.LogWarning(exception, "Migration run cancelled; the transaction was rolled back.");
+            logger.LogWarning("Migration run cancelled; the transaction was rolled back.");
             return MigrationCancelledExitCode;
         }
         catch (Exception exception)
@@ -126,22 +126,45 @@ public static class FlowzerStorageExtensions
         logger.LogInformation("Automatisch ergänzte historische Formularbindungen: {Count}", upgraded);
     }
 
-    // Eine Zeile, die ohne Stacktrace verstaendlich ist; die Ausnahme haengt fuer die Diagnose an.
-    private static void LogMigrationFailure(ILogger logger, Exception exception)
+    /// <summary>
+    /// Endliche Fehlerprojektion: keine Message, InnerException, Typnamen unbekannter
+    /// Erweiterungen oder SQL-Texte an Logger weitergeben. Auch strukturierte Logprovider
+    /// dürfen die originale Ausnahme nicht nachträglich serialisieren (#375).
+    /// </summary>
+    internal static void LogMigrationFailure(ILogger logger, Exception exception)
     {
-        if (exception is SchemaMigrationFailedException failed)
+        var failed = exception as SchemaMigrationFailedException;
+        var cause = failed?.InnerException ?? exception;
+        var category = cause switch
         {
-            var cause = failed.InnerException ?? failed;
-            logger.LogError(cause,
-                "PostgreSQL migration {Migration} (version {Version}) failed; the migration run was rolled back and no migration was applied: {ExceptionType} (SqlState {SqlState}): {Reason}",
-                failed.Name, failed.Version, cause.GetType().FullName, failed.SqlState ?? "-", cause.Message);
+            PostgresException => "Npgsql.PostgresException",
+            NpgsqlException => "Npgsql.NpgsqlException",
+            ArgumentException => "System.ArgumentException",
+            InvalidOperationException => "System.InvalidOperationException",
+            _ => "OTHER"
+        };
+        // SQLSTATEs sind Protokollcodes, aber auch hier nur konkrete bekannte Kategorien
+        // übernehmen. Freie DB-Nachrichten und Migrationsnamen sind keine sichere Projektion.
+        var sqlState = (cause as PostgresException)?.SqlState switch
+        {
+            PostgresErrorCodes.UndefinedColumn => PostgresErrorCodes.UndefinedColumn,
+            PostgresErrorCodes.InsufficientPrivilege => PostgresErrorCodes.InsufficientPrivilege,
+            PostgresErrorCodes.InvalidPassword => PostgresErrorCodes.InvalidPassword,
+            PostgresErrorCodes.DuplicateTable => PostgresErrorCodes.DuplicateTable,
+            PostgresErrorCodes.TooManyConnections => PostgresErrorCodes.TooManyConnections,
+            PostgresErrorCodes.QueryCanceled => PostgresErrorCodes.QueryCanceled,
+            _ => "OTHER"
+        };
+        if (failed is not null)
+        {
+            logger.LogError(
+                "PostgreSQL migration (version {Version}) failed; the migration run was rolled back and no migration was applied: {ExceptionType} (SqlState {SqlState}).",
+                failed.Version, category, sqlState);
             return;
         }
 
-        // Alles andere: Konfiguration, Verbindung, Advisory-Lock oder das Formularbindungs-Upgrade
-        // nach bereits bestaetigten Migrationen. Was davor gelang, steht in den Zeilen davor.
-        logger.LogError(exception,
-            "Migration step failed: {ExceptionType} (SqlState {SqlState}): {Reason}",
-            exception.GetType().FullName, (exception as PostgresException)?.SqlState ?? "-", exception.Message);
+        // Das Formularbindungs-Upgrade kann nach bereits bestätigten Migrationen scheitern:
+        // keine pauschale Rollbackbehauptung für den gesamten Deployment-Schritt.
+        logger.LogError("Migration step failed: {ExceptionType} (SqlState {SqlState}).", category, sqlState);
     }
 }

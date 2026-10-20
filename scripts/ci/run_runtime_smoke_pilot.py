@@ -19,6 +19,9 @@ shared = importlib.util.module_from_spec(spec); spec.loader.exec_module(shared)
 SDK = 'mcr.microsoft.com/dotnet/sdk@sha256:b1ae36d53ae3803280431dc4b67ebdcc29ffb20c09a40748de154b584c05b259'
 ASP = 'mcr.microsoft.com/dotnet/aspnet@sha256:e4b445f93a5deeb6bd7de300febceb8dd7e481ac65ccf1b474eddc3642a3010f'
 PG = 'docker.io/library/postgres@sha256:66aafa11cf15800a3c94763f7e11d1e7b2e37e5e84bc4ce027cb6e1e4bfaf4df'
+# An die aktuelle komponierte eingebettete SQL-Quelle 001..022 gebunden.
+# Kein Eingabe-/Imagewert darf den Erwartungshead absenken; Source-Test gleicht ihn ab.
+EXPECTED_MIGRATION = 22
 class PilotDiagnostics:
     """Nur feste Codes/Counts; weder Exceptions noch Kindausgaben werden in Berichte übernommen."""
     PHASES = {'OPENING','TEMP','SOURCE','RESOURCES','DAEMON','OWN_NAMES_INITIAL','ARCHIVE','EXTRACT',
@@ -59,7 +62,7 @@ class PilotDiagnostics:
         if set(value)!=set(lengths)|{'image','runtime','expectedMigration'} \
                 or any(not isinstance(value[k],str) or not re.fullmatch('[a-f0-9]{'+str(n)+'}',value[k]) for k,n in lengths.items()) \
                 or not isinstance(value['image'],str) or not re.fullmatch('sha256:[a-f0-9]{64}',value['image']) \
-                or value['runtime']!='10.0.13' or type(value['expectedMigration']) is not int or value['expectedMigration']!=20:
+                or value['runtime']!='10.0.13' or type(value['expectedMigration']) is not int or value['expectedMigration']!=EXPECTED_MIGRATION:
             raise ValueError('ARTIFACT_PROVENANCE')
         self.artifacts=dict(value)
 
@@ -261,10 +264,10 @@ def _execute(lease, work, docker, now, report):
         dockerPath=str(docker),dockerSha256=file_digest(docker),dockerHost='unix:///var/run/docker.sock',daemonId=info['ID'],
         pgImage=PG,apiImage=image,apiSha256=pins['API'],feederSha256=pins['FEEDER'],
         nativePath='/app/runtimes/linux-x64/native/ClearScriptV8.linux-x64.so',nativeSha256=pins['NATIVE'],
-        runtime='10.0.13',pgUid=999,apiUid=1654,gid=22000,expectedMigration=20)
+        runtime='10.0.13',pgUid=999,apiUid=1654,gid=22000,expectedMigration=EXPECTED_MIGRATION)
     path=work/'opening.json';raw=(json.dumps(opening,sort_keys=True)+'\n').encode();path.write_bytes(raw);path.chmod(0o600)
     result=dict(sourceSha=lease['sourceSha'],sourceTree=lease['sourceTree'],nonce=lease['nonce'],
-                image=image,inventorySHA256=pins['INVENTORY'],runtime='10.0.13',expectedMigration=20,p3Accepted=True)
+                image=image,inventorySHA256=pins['INVENTORY'],runtime='10.0.13',expectedMigration=EXPECTED_MIGRATION,p3Accepted=True)
     (work/'artifact-pins.json').write_text(json.dumps(dict(result,apiSHA256=pins['API'],feederSHA256=pins['FEEDER'],
                                                        nativeSHA256=pins['NATIVE']),indent=2)+'\n')
     report.bind_artifacts(dict({k:v for k,v in result.items() if k!='p3Accepted'},apiSHA256=pins['API'],feederSHA256=pins['FEEDER'],nativeSHA256=pins['NATIVE'],
