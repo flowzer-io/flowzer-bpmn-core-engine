@@ -360,11 +360,16 @@ def prove_active_api_block(binding,config,target,guard,port,pg_cid,api_cid):
             except op.PortFailure:
                 if (cid_or_name,role,running,nonce)==(api_cid,'api',False,port.plan['nonce']):self.rejected_old_running_api=True
                 raise
+    require(config.allowed_network_peers==(),'EXPECTED_NEGATIVE')
     probe=Probe(binding,config,target,guard,mode='restart',pipe=port,prior_pg_cid=pg_cid,prior_api_cid=api_cid)
     delivered=[]
     try:
         probe._image()  # benötigte unveränderte Image-ENVbindung vor eigenem Containerreadback
         probe._inspect_app(api_cid,'api',True,port.plan['nonce'])
+        # Erst nach vollständigem eigenen Image-/Config-/FullCID-Readback genau
+        # diese noch laufende API als erwarteten Peer der Negativprobe binden.
+        # Der echte Stop/Restart erhält unverändert config ohne Probepeer.
+        probe.r=dataclasses.replace(config,allowed_network_peers=(api_cid,));probe.r.validate()
         try:op.ManualOperator().run('restart',probe,lambda:delivered.append(True))
         except op.OperatorFailure as e:require(e.phase=='PREFLIGHT' and not delivered and not e.own_local_pid and probe.rejected_old_running_api,'EXPECTED_NEGATIVE')
         else:raise old.FixtureFailure('EXPECTED_NEGATIVE')

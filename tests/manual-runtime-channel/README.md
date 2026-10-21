@@ -182,3 +182,19 @@ Status bleiben negativ. Die lokale Clientversion ist kein Beleg für die
 unbekannte Wget-Version oder den fehlenden HTTPstatus des historischen nativen
 API_PROOF-Fehlers. Lauf39521401694 bestätigte CLI27, Migration22 und CleanupABSENT,
 aber noch keine Readiness-/401-/Restart-Abnahme.
+
+
+## Kausale Probe mit genau bekanntem laufendem Eigenpeer
+
+Die aktive-API-Negativprobe validiert zuerst vollständig Image, Ownerlabels,
+Konfiguration und FullCID der bekannten noch laufenden eigenen API. Ausschließlich
+im lokalen Probeclone wird danach genau diese CID über das bereits vorhandene
+`allowed_network_peers` registriert. So erreicht die unveränderte exakte Netz-
+prüfung den eigentlichen Running-Guard, statt den erwarteten Eigenpeer vorher
+als unbekannt abzulehnen. Weitere Peers sind weiterhin verboten. Das ursprüngliche
+Binding sowie echter Stop/Restart bleiben ohne Probepeer unverändert. Ein Test
+mit tatsächlichen RuntimePorts und dem bestehenden vollständigen Pipefake
+belegt den kausalen Pfad; Fremdpeer, Ownerdrift und früher Client-Preflightfehler
+gelten niemals als erfolgreiche Sperrprobe. Kein neues Secret, Stop oder Start
+in der Negativprobe. Der historische native Teilbeleg39522553486 bleibt Initial-
+Erfolg; aktive Sperre/Restart wurden dort nicht rückwirkend abgenommen.

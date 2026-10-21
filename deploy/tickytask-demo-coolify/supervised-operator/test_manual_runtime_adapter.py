@@ -349,6 +349,30 @@ class RuntimeTests(unittest.TestCase):
             with self.subTest(status=status,exit=exit),mock.patch.object(ports,'_raw',return_value=t.PipeResult(exit,b'',stderr)),self.assertRaises(op.PortFailure):ports._http('/Definition',3)
         with mock.patch.object(ports,'_raw',return_value=t.PipeResult(4,b'',b'')):self.assertEqual(ports._http('/health/ready',3),(0,b''))
 
+    def test_fixture_active_api_probe_reaches_real_running_guard_with_exact_own_peer(self):
+        # Testzweck: echte RuntimePorts-Netzprüfung muss den bekannten laufenden Eigenpeer passieren, nicht früher abbrechen.
+        names=('manual_postgres','manual_transport','manual_pg_adapter','manual_runtime_adapter','old_pg_channel')
+        saved={name:sys.modules.get(name) for name in names}
+        try:
+            path=D.parents[2]/'tests/manual-runtime-channel/run_fixture.py'
+            spec=importlib.util.spec_from_file_location('fixture_real_peer_contract',path);fixture=importlib.util.module_from_spec(spec);spec.loader.exec_module(fixture)
+            # Keine RuntimePorts-Mocks: dieselbe konkrete Klasse und vorhandener vollständiger Pipefake.
+            fixture.runtime=a;fixture.op=op
+            for bad in [None,'peer','labels','unsupported-client']:
+                with self.subTest(bad=bad):
+                    first,pipe,result=self.initial();pipe.runs={k:v for k,v in pipe.runs.items() if '_postgres_' in k or '_api_' in k};pipe.bad=bad
+                    config=dataclasses.replace(first.r,attempt_nonce='3'*32,prior_api_nonce='c'*32)
+                    pipe.plan={'nonce':'c'*32};before=len(pipe.calls)
+                    if bad is None:fixture.prove_active_api_block(first.pg.b,config,first.pg.target,lambda:None,pipe,'b'*64,result.api_cid)
+                    else:
+                        with self.assertRaises((op.PortFailure,fixture.old.FixtureFailure)):fixture.prove_active_api_block(first.pg.b,config,first.pg.target,lambda:None,pipe,'b'*64,result.api_cid)
+                    self.assertEqual(config.allowed_network_peers,())
+                    self.assertFalse(any(args[:2] in [['container','stop'],['container','rm'],['container','run'],['container','start']] or payload or secrets for args,payload,secrets in pipe.calls[before:]))
+        finally:
+            for name,value in saved.items():
+                if value is None:sys.modules.pop(name,None)
+                else:sys.modules[name]=value
+
     def test_invalid_settings_block_before_remote_io(self):
         # Testzweck: keine Broadproxy-/fremdeRealm-/clearHTTP-/Rootuserbindung.
         ports,p=self.make()
