@@ -198,3 +198,30 @@ belegt den kausalen Pfad; Fremdpeer, Ownerdrift und früher Client-Preflightfehl
 gelten niemals als erfolgreiche Sperrprobe. Kein neues Secret, Stop oder Start
 in der Negativprobe. Der historische native Teilbeleg39522553486 bleibt Initial-
 Erfolg; aktive Sperre/Restart wurden dort nicht rückwirkend abgenommen.
+
+
+## Neutraler Remote-Client ohne Rootkonfiguration
+
+Der bestehende `SshTarget` und unveränderte `BoundedPipe` benutzen weiterhin den
+festen SSH-/Hostkeypfad und lokalen Unixsocket. Vor jedem Remote-Dockeraufruf
+prüft ein festes `/usr/bin/python3 -I -S -B -c`-Programm genau einmal
+`lstat('/nonexistent')`: ausschließlich FileNotFoundError mit errno.ENOENT ist
+zulässig. Vorhandene Objekte, Symlinks und alle anderen Fehler stoppen stumm.
+Zusätzlich folgen die festen `test ! -e`-/`test ! -L`-Guards. Kein Verzeichnis
+wird angelegt, gelöscht oder als Fallback gesucht, Rootconfig wird nicht gelesen.
+
+Danach startet ausschließlich `/usr/bin/env -i PATH=/nonexistent HOME=/nonexistent
+DOCKER_CONFIG=/nonexistent LC_ALL=C /usr/bin/docker --config /nonexistent --host
+unix:///run/docker.sock` mit den bestehenden festen Dockerargumenten. Auch PATH
+ist absichtlich abwesend: Docker27 kann sonst selbst bei leerer Config automatisch
+Credentialhelper über PATH finden. Context-, Proxy-, TLS- und Loaderumgebungen
+werden nicht geerbt; vorhandene SSHguards, Secretkanäle und Grenzen bleiben.
+Die exakte Hülle wird von vorhandenen Hosted-/Formatterfakes geprüft, nicht durch
+einen zweiten SSH-/Dockerweg ersetzt. Lokale Tests ersetzen nur eigene Testpfade,
+Socket und Programme; macOS besitzt `/bin/test` statt des Linux-`/usr/bin/test`.
+Sie belegen eigenen AF_UNIX-Zugriff und künstlich vergiftete ENV-/HOME-/Config-/
+Helperfälle, nicht private Client27-/ARM64-Parität. Ein beliebiger gleichzeitiger
+Rootprozess könnte einen Pfad nach dem letzten Check verändern; dies ist keine
+Sandbox gegen Root. Frische Host-/Source-/Leasebindung und explizite private
+Read-/Writefreigaben bleiben erforderlich. Null Host-Metadatenwrites durch diesen
+Sourcefix; eine fehlgeschlagene Absenzprüfung erlaubt keine automatische Reparatur.

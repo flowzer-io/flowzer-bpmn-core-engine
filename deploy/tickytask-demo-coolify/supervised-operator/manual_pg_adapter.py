@@ -31,6 +31,44 @@ class PgAdapterFailure(Exception):
         super().__init__('FLOWZER_INITIAL_PG_ADAPTER_UNPROVEN')
 
 
+# Ein fehlender Configpfad allein reicht nicht: Docker kann Credentialhelper per
+# PATH automatisch finden. Alle drei Pfade sind deshalb fest abwesend. Kein
+# mkdir/Fallback und kein Root-HOME-/Configread. Nur ENOENT ist echte Abwesenheit.
+REMOTE_LSTAT_GUARD="""import errno,os,sys
+try:os.lstat('/nonexistent')
+except FileNotFoundError as error:sys.exit(0 if error.errno==errno.ENOENT else 1)
+except BaseException:sys.exit(1)
+else:sys.exit(1)
+"""
+
+
+def _remote_docker_command(command):
+    """Nur feste stumme Metadatenguards und explizit neutraler absoluter Client.
+
+    Derselbe vertrauenswürdige Root kann die Metadaten nach der Prüfung ändern;
+    dies ist keine Isolation gegen beliebigen Rootcode. Der äußere Versuchsguard
+    muss weiterhin Host, Source und exklusiven eigenen Operationsscope binden.
+    """
+    parts=[['/usr/bin/python3','-I','-S','-B','-c',REMOTE_LSTAT_GUARD],
+           ['/usr/bin/test','!','-e','/nonexistent'],['/usr/bin/test','!','-L','/nonexistent'],
+           ['/usr/bin/env','-i','PATH=/nonexistent','HOME=/nonexistent','DOCKER_CONFIG=/nonexistent','LC_ALL=C',
+            '/usr/bin/docker','--config','/nonexistent','--host','unix:///run/docker.sock',*command]]
+    return ' && '.join(shlex.join(part) for part in parts)
+
+
+def remote_docker_arguments(remote):
+    """Nur Fixtureübersetzung der exakten SSHhülle; kein alternativer Executor.
+
+    Bekannte Hosted-/Formatterfakes dürfen ausschließlich diese unveränderte
+    Hülle entfernen. Fehlende/zusätzliche ENV-/Config-/Socketguards sind Fehler.
+    """
+    try:
+        words=shlex.split(remote);prefix=shlex.split(_remote_docker_command([]))
+        if words[:len(prefix)]!=prefix or len(words)<=len(prefix):raise PgAdapterFailure()
+        return words[len(prefix):]
+    except (ValueError,TypeError):raise PgAdapterFailure() from None
+
+
 @dataclass(frozen=True)
 class SshTarget:
     """Öffentliche Bindungsform, keine privaten Host-/Dateiwerte als Default.
@@ -51,12 +89,13 @@ class SshTarget:
 
     def argv(self,command):
         self.validate()
+        if type(command) is not list or not command or not all(type(v) is str and v and '\0' not in v for v in command):raise PgAdapterFailure()
         return ['/usr/bin/ssh','-F','/dev/null','-T','-o','BatchMode=yes','-o','StrictHostKeyChecking=yes',
             '-o','UpdateHostKeys=no','-o','ConnectionAttempts=1','-o','ConnectTimeout=8','-o','HostKeyAlgorithms=ssh-ed25519',
             '-o','HostName='+self.ipv4,'-o','HostKeyAlias='+self.alias,'-o','UserKnownHostsFile='+self.known_hosts,
             '-o','GlobalKnownHostsFile=/dev/null','-o','ClearAllForwardings=yes','-o','PermitLocalCommand=no',
             '-o','ProxyCommand=none','-o','ProxyJump=none','-o','IdentitiesOnly=yes','-o','EscapeChar=none',
-            'root@'+self.alias,shlex.join(['/usr/bin/docker','--host','unix:///run/docker.sock',*command])]
+            'root@'+self.alias,_remote_docker_command(command)]
 
 
 @dataclass(frozen=True)

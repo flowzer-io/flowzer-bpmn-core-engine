@@ -12,7 +12,7 @@ BASE_LABELS={'org.opencontainers.image.revision':'f'*40,'org.opencontainers.imag
 class Pipe:
     def __init__(self):self.calls=[];self.labels={};self.runs={};self.stopped_ids=set();self.bad=None;self.history=False;self.cids={}
     def exchange(self,argv,payload,secrets,**kw):
-        args=shlex.split(argv[-1])[3:];self.calls.append((args,bytes(payload),list(secrets)));out=b'';err=b''
+        args=pg.remote_docker_arguments(argv[-1]);self.calls.append((args,bytes(payload),list(secrets)));out=b'';err=b''
         if self.bad=='transport':raise t.TransportFailure('HANDLE_UNKNOWN',12345)
         if args[:1]==['version']:out=json.dumps('29.8.2' if self.bad=='unsupported-client' else '27.5.1').encode()
         elif args[:2]==['image','inspect']:
@@ -201,7 +201,7 @@ class RuntimeTests(unittest.TestCase):
             worker=threading.Thread(target=server.serve_forever,daemon=False);worker.start();seen=set()
             class FormattingPipe:
                 def exchange(inner,argv,payload,secrets,**kw):
-                    args=shlex.split(argv[-1])[3:];result=native(argv,payload,secrets,**kw)
+                    args=pg.remote_docker_arguments(argv[-1]);result=native(argv,payload,secrets,**kw)
                     if '--format' not in args:return result
                     # Dieser Formattertest modelliert den Zielclient27 separat; die
                     # tatsächlich installierte29 ist kein positiver Runtimebeleg.

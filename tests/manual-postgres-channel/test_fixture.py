@@ -38,6 +38,19 @@ class Contracts(unittest.TestCase):
         for change in [dict(raw='PRIVATE'),dict(payload_sha256='a'*64),dict(prompts=True),dict(cleanup='success-maybe')]:
             with self.assertRaises(m.FixtureFailure):m.case_proof(dict(good,**change))
     def port(self):return m.LocalDockerPipe(lambda:None,dict(nonce='d'*32,sha='a'*40,run='12345'))
+    def test_only_exact_neutral_ssh_envelope_is_translated_before_any_local_command(self):
+        # Testzweck: Hostedübersetzung darf keine ausgelassenen ENV-/Config-/Metadatenguards als Fallback akzeptieren.
+        port=self.port();calls=[]
+        port.plain=lambda args,*a,**kw:calls.append(args) or m.transport.PipeResult(0,b'',b'')
+        argv=m.pg.SshTarget('192.0.2.8','synthetic.invalid','/synthetic/known_hosts').argv(['version'])
+        port.exchange(argv,b'',[],timeout=2);self.assertEqual(calls,[['version']])
+        raw=argv[-1]
+        wrong=[raw.split(' && ',1)[-1],raw.replace('/usr/bin/env -i','/usr/bin/env',1),raw.replace('PATH=/nonexistent','PATH=/usr/bin:/bin',1),raw.replace('HOME=/nonexistent','HOME=/synthetic/foreign',1),raw.replace('DOCKER_CONFIG=/nonexistent','DOCKER_CONFIG=/synthetic/foreign',1),raw.replace('--config /nonexistent','--config /synthetic/foreign',1),raw.replace('unix:///run/docker.sock','tcp://synthetic.invalid:2375',1),raw.replace('/usr/bin/python3','python3',1)]
+        for remote in wrong:
+            changed=[*argv[:-1],remote]
+            with self.subTest(prefix=remote[:16]),self.assertRaises(m.FixtureFailure):port.exchange(changed,b'',[],timeout=2)
+        self.assertEqual(calls,[['version']])
+
     def test_eof_channel_with_real_own_python_fixture_not_docker(self):
         # Testzweck: echte eigene Pipes warten auf EOF; der feste Dockerpfad wird nur gemockt.
         native=subprocess.Popen;port=self.port()

@@ -45,7 +45,7 @@ class Formats(unittest.TestCase):
    class Pipe:
     def exchange(_,argv,payload,secrets,**kw):
      import shlex
-     args=shlex.split(argv[-1])[3:]
+     args=a.remote_docker_arguments(argv[-1])
      if '--format' not in args:return native(argv,payload,secrets,**kw)
      seen.append(args[:2]);r=subprocess.run([docker,'--host','unix://'+sock,*args],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=5,
        env={'PATH':'/usr/bin:/bin','HOME':'/nonexistent','DOCKER_CONFIG':'/nonexistent','DOCKER_API_VERSION':'1.47','LC_ALL':'C'})

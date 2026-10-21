@@ -1,5 +1,6 @@
 """Testzweck: konkrete Docker-/SSHverdrahtung nur mit Fakepipe, keine privaten Prozesse."""
-import importlib.util,sys,json,shlex,unittest,subprocess,warnings
+import importlib.util,sys,json,shlex,unittest,subprocess,warnings,errno,tempfile,shutil,os,hashlib,re,http.server,socketserver,threading
+from unittest import mock
 from pathlib import Path
 D=Path(__file__).parent
 for name in ['manual_postgres','manual_transport','manual_pg_adapter']:
@@ -8,7 +9,7 @@ a=sys.modules['manual_pg_adapter'];pg=sys.modules['manual_postgres'];transport=s
 class Pipe:
     def __init__(self):self.calls=[];self.labels={};self.fail=None;self.ready_codes=[0];self.mount_transform=lambda x:x
     def exchange(self,argv,payload,secrets,**options):
-        command=shlex.split(argv[-1]);args=command[3:];self.calls.append((args,bytes(payload),list(argv)))
+        args=a.remote_docker_arguments(argv[-1]);self.calls.append((args,bytes(payload),list(argv)))
         if self.fail and self.fail in args:raise transport.TransportFailure('TIMEOUT')
         out=b'';err=b''
         if args[:2]==['image','inspect']:out=json.dumps(dict(id='sha256:'+'a'*64,os='linux',arch='arm64')).encode()
@@ -103,4 +104,71 @@ class PgAdapterTests(unittest.TestCase):
         # Testzweck: freier stderr/Error/zusätzlicher Prompt ist kein erwarteter psqlDialog.
         self.assertTrue(a.expected_password_prompts(b'Password: \nPassword for user postgres: \n'))
         for data in [b'',b'Password: ',b'Password: PRIVATE_ERROR',b'Password: Password: Password: ']:self.assertFalse(a.expected_password_prompts(data))
+    def test_remote_envelope_has_fixed_absence_env_config_and_socket_not_root_defaults(self):
+        # Testzweck: SSHchild erbt weder Root-HOME/config noch Proxy/Context/Credentialhelper-PATH.
+        words=shlex.split(self.adapter().target.argv(['version'])[-1])
+        for value in ['/usr/bin/python3','-I','-S','-B','-c','/usr/bin/test','/usr/bin/env','-i','PATH=/nonexistent','HOME=/nonexistent','DOCKER_CONFIG=/nonexistent','LC_ALL=C','--config','/nonexistent','--host','unix:///run/docker.sock']:self.assertIn(value,words)
+        self.assertEqual(words.count('&&'),3);self.assertEqual(a.remote_docker_arguments(self.adapter().target.argv(['version'])[-1]),['version'])
+
+    def test_fixed_lstat_guard_only_accepts_actual_enoent_and_never_metadata_errors(self):
+        # Testzweck: !-e allein würde Metadatenfehler mit Abwesenheit verwechseln; exakt ein lstat ohne Rohtext.
+        for error,exit in [(FileNotFoundError(errno.ENOENT,'synthetic'),0),(FileNotFoundError(errno.EACCES,'synthetic'),1),(PermissionError(errno.EACCES,'synthetic'),1),(OSError(errno.EIO,'synthetic'),1),(None,1)]:
+            with self.subTest(error=type(error).__name__),mock.patch('os.lstat',side_effect=error,return_value=object()) as check:
+                with self.assertRaises(SystemExit) as end:exec(a.REMOTE_LSTAT_GUARD,{})
+                self.assertEqual(end.exception.code,exit);check.assert_called_once_with('/nonexistent')
+
+    def neutral_test_command(self,command,path,executable,socket=None):
+        # Testzweck: nur eigene Testpfade/Binary/Socket ersetzen, keine SSH-/Daemonaktion.
+        remote=self.adapter().target.argv(command)[-1].replace('/usr/bin/docker',str(executable)).replace('/usr/bin/python3',sys.executable)
+        # macOS besitzt /bin/test statt /usr/bin/test; Linux-Sourceprefix bleibt exakt.
+        if not Path('/usr/bin/test').exists():remote=remote.replace('/usr/bin/test','/bin/test')
+        remote=remote.replace('/nonexistent',str(path))
+        if socket is not None:remote=remote.replace('unix:///run/docker.sock','unix://'+str(socket))
+        return remote
+
+    def test_actual_env_prefix_suppresses_poisoned_home_context_proxy_and_helper(self):
+        # Testzweck: Original-BoundedPipe führt nur eigenen Stub aus; geerbter Helfer darf nicht aufgerufen werden.
+        with tempfile.TemporaryDirectory(dir='/tmp',prefix='fz-neutral-env-') as temp:
+            root=Path(temp);absent=root/'absent';poison=root/'poison';poison.mkdir();marker=root/'helper-ran';stub=root/'own-client'
+            helper=poison/'docker-credential-canary';helper.write_text('#!'+sys.executable+'\nfrom pathlib import Path\nPath('+repr(str(marker))+').touch()\n');helper.chmod(0o700)
+            stub.write_text('#!'+sys.executable+'\nimport os,json,shutil,subprocess\np=shutil.which("docker-credential-canary")\nif p:subprocess.run([p],check=True)\nprint(json.dumps(dict(home=os.getenv("HOME"),config=os.getenv("DOCKER_CONFIG"),path=os.getenv("PATH"),forbidden=[k for k in ["DOCKER_CONTEXT","DOCKER_HOST","DOCKER_TLS_VERIFY","HTTPS_PROXY","LD_LIBRARY_PATH"] if k in os.environ],helper=p)))\n');stub.chmod(0o700)
+            argv=['/usr/bin/env','HOME='+str(poison),'DOCKER_CONFIG='+str(poison),'PATH='+str(poison),'DOCKER_CONTEXT=synthetic-poison','DOCKER_HOST=unix://'+str(root/'never.sock'),'DOCKER_TLS_VERIFY=1','HTTPS_PROXY=http://synthetic.invalid:9','LD_LIBRARY_PATH='+str(poison),'/bin/sh','-c',self.neutral_test_command(['version'],absent,stub)]
+            result=transport.BoundedPipe().exchange(argv,b'',[],timeout=5);self.assertEqual(result.exit_code,0);self.assertFalse(result.stderr)
+            value=json.loads(result.stdout);self.assertEqual(value,dict(home=str(absent),config=str(absent),path=str(absent),forbidden=[],helper=None));self.assertFalse(marker.exists())
+
+    def test_actual_cli_own_unix_socket_ignores_poison_and_blocks_present_or_symlink_scope(self):
+        # Testzweck: echter versions-/digestgebundener Client erreicht nur eigenen AF_UNIX-Fake ohne fremde Config.
+        docker=Path(shutil.which('docker')).resolve();digest=hashlib.sha256(docker.read_bytes()).hexdigest()
+        version=transport.BoundedPipe().exchange([str(docker),'--version'],b'',[],timeout=3)
+        match=re.fullmatch(rb'Docker version ([0-9]+\.[0-9]+\.[0-9]+)[^\n]*\n?',version.stdout);self.assertIsNotNone(match)
+        requests=[]
+        class Server(socketserver.UnixStreamServer):pass
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def log_message(self,*args):pass
+            def do_HEAD(self):self.reply(True)
+            def do_GET(self):self.reply(False)
+            def reply(self,head):
+                path=re.sub(r'^/v[0-9.]+','',self.path);requests.append(path)
+                value=b'OK' if path=='/_ping' else json.dumps(dict(Version='27.5.1',ApiVersion='1.47',MinAPIVersion='1.24',Os='linux',Arch='amd64',Components=[])).encode()
+                self.send_response(200);self.send_header('API-Version','1.47');self.send_header('Content-Length',str(len(value)));self.end_headers()
+                if not head:self.wfile.write(value)
+        with tempfile.TemporaryDirectory(dir='/tmp',prefix='fz-neutral-cli-') as temp:
+            root=Path(temp);sock=root/'own.sock';absent=root/'absent';poison=root/'poison';poison.mkdir()
+            (poison/'config.json').write_text(json.dumps(dict(currentContext='synthetic-poison',proxies={'default':{'httpProxy':'http://synthetic.invalid:9'}},credsStore='canary')))
+            server=Server(str(sock),Handler);thread=threading.Thread(target=server.serve_forever,daemon=False);thread.start()
+            remote=self.neutral_test_command(['version','--format','{{json .Client.Version}}'],absent,docker,sock)
+            argv=['/usr/bin/env','HOME='+str(poison),'DOCKER_CONFIG='+str(poison),'DOCKER_CONTEXT=synthetic-poison','DOCKER_HOST=unix://'+str(root/'never.sock'),'HTTPS_PROXY=http://synthetic.invalid:9','/bin/sh','-c',remote]
+            try:
+                result=transport.BoundedPipe().exchange(argv,b'',[],timeout=5);self.assertEqual(result.exit_code,0);self.assertFalse(result.stderr);self.assertEqual(json.loads(result.stdout),match[1].decode());self.assertTrue(requests)
+                count=len(requests)
+                for symlink in [False,True]:
+                    if symlink:absent.symlink_to(poison,target_is_directory=True)
+                    else:absent.mkdir()
+                    blocked=transport.BoundedPipe().exchange(argv,b'',[],timeout=5);self.assertNotEqual(blocked.exit_code,0);self.assertFalse(blocked.stdout);self.assertFalse(blocked.stderr);self.assertEqual(len(requests),count)
+                    if symlink:absent.unlink()
+                    else:absent.rmdir()
+            finally:
+                server.shutdown();server.server_close();thread.join(3);self.assertFalse(thread.is_alive());self.assertEqual(hashlib.sha256(docker.read_bytes()).hexdigest(),digest)
+            print('REMOTE_NEUTRAL_LOCAL_CLI_SAFE '+json.dumps(dict(clientVersion=match[1].decode(),binarySha256=digest,ownUnixOnly=True,rootConfigRead=False,ownHandles=0),separators=(',',':')))
+
 if __name__=='__main__':unittest.main()

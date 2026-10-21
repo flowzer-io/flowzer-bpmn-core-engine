@@ -122,8 +122,9 @@ class LocalDockerPipe:
         r=self.plain(args,**kw);require(type(r.exit_code) is int and r.exit_code==0,'DOCKER');return r.stdout
     def exchange(self,argv,payload,secrets,**options):
         require(argv[-2]=='root@synthetic.invalid' and argv[:3]==['/usr/bin/ssh','-F','/dev/null'])
-        words=shlex.split(argv[-1]);require(words[:3]==['/usr/bin/docker','--host','unix:///run/docker.sock'])
-        args=words[3:];is_psql=any(v.endswith('/psql') for v in args)
+        try:args=pg.remote_docker_arguments(argv[-1])
+        except pg.PgAdapterFailure:raise FixtureFailure('SOURCE') from None
+        is_psql=any(v.endswith('/psql') for v in args)
         if is_psql and self.mode=='missingpw':payload=omit_reconnect_password(payload,secrets[0])
         r=self.hold_eof(args,payload,secrets) if is_psql and self.mode=='noeof' else self.plain(args,payload,secrets,timeout=options.get('timeout',20))
         if is_psql:
