@@ -134,3 +134,20 @@ Body-/Secretbytes oder Secret-Hashes. Die alten fehlenden Diagnosen/`actualHead`
 null werden nicht rückwirkend umgedeutet. Der zweite historische Hostedlauf
 39513937719 bleibt API_START FAILURE, damals Cleanup tatsächlichABSENT; die
 konkrete damalige CLIversion/Transportursache ist im alten Proof nicht enthalten.
+
+
+## Prepare-Abbruch vor Runtime
+
+Bereits der Prepare-CLI-Aufruf gibt bei Fehlern einen festen Marker
+`CLI27_PREPARE_SAFE` mit genau fünf sicheren Feldern aus: `stage`, `exit`,
+`httpStatus`, `transportCode`, `ownPid`. Stufen sind SOURCE, DOWNLOAD, HTTP,
+SIZE, HASH, ARCHIVE, STORE und intern COMPLETE. Exitcodes bleiben nullable
+Ganzzahlen von−255bis255, HTTPstatus nullable100bis599; Transportcodes stammen
+unverändert aus dem festen Transportenum, OwnPID ist nullable positive32Bit.
+Kein Exceptiontext, Downloadinhalt, URL, Header, Umgebungs- oder Konfigurationsdump.
+Bei unbekanntem eigenen Writer wird kein zusätzlicher Dateilöschschritt gestartet.
+Die Diagnose ist **kein Runtime-/Cleanup-Beleg**. Ein Prepare-Abbruch erzeugt
+weiterhin kein erfundenes Runtimeartifact: fehlendes Artifact bleibt UNKNOWN.
+Der historische Lauf39518761226 scheiterte vor den Pure-/27-Positiv-/Runtime-
+Schritten; seine konkrete Prepare-Ursache wurde nicht belegt und bleibt UNKNOWN.
+Ein Diagnosefix ist keine Berechtigung zu Download, Ausführung oder neuem Dispatch.

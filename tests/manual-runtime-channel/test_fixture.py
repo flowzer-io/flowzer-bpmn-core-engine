@@ -1,4 +1,5 @@
 """Testzweck: reine kombinierte Fixture-Verträge; keine Docker-/SSH-/PG-Ausführung."""
+import contextlib
 import importlib.util,json,sys,unittest,subprocess,dataclasses,http.server,socketserver,threading,tempfile,shutil,os,socket,tarfile,io,hashlib
 from urllib.parse import urlsplit,parse_qs
 from pathlib import Path
@@ -229,6 +230,37 @@ class Contracts(unittest.TestCase):
                     else:
                         binding=m.prepare_client(root,lambda:guards.append(True));fd=binding.open_verified();os.close(fd)
                 self.assertEqual(len(calls),1);self.assertEqual(len(guards),2);self.assertFalse((root/'flowzer-cli27-package.download').exists())
+    def test_prepare_failure_projects_fixed_stages_before_runtime_without_raw_error(self):
+        # Testzweck: echte Prepare-Abbrüche vor Runtime bleiben als feste, begrenzte Diagnose unterscheidbar.
+        cases=[('SOURCE','source'),('HTTP','bad-exit'),('HTTP','bad-http'),('DOWNLOAD','download'),('HTTP','http'),('SIZE','size'),('HASH','hash'),('ARCHIVE','archive'),('STORE','store'),('DOWNLOAD','handle')]
+        for expected,case in cases:
+            with self.subTest(case=case),tempfile.TemporaryDirectory(dir='/tmp',prefix='fz-prepare-diagnostic-') as temp:
+                raw,binary=self.synthetic_package();pin=dict(sha256=hashlib.sha256(raw).hexdigest(),size=len(raw),binarySha256=hashlib.sha256(binary).hexdigest(),binarySize=len(binary),url='https://download.docker.com/synthetic.deb')
+                if case=='archive':raw=b'x'*len(raw);pin['sha256']=hashlib.sha256(raw).hexdigest()
+                calls=[];output=io.StringIO();root=Path(temp);os.chmod(root,0o700)
+                def exchange(argv,payload,secrets,**kw):
+                    calls.append(True)
+                    if case in ('download','handle'):raise m.old.transport.TransportFailure('HANDLE_UNKNOWN' if case=='handle' else 'OS_ERROR',12345 if case=='handle' else None)
+                    fd=int(argv[argv.index('--output')+1].rsplit('/',1)[1]);data=raw[:-1] if case=='size' else b'x'*len(raw) if case=='hash' else raw;os.write(fd,data)
+                    return m.old.transport.PipeResult(999 if case=='bad-exit' else 22 if case=='http' else 0,b'PRIVATE_RAW_ERROR_SENTINEL' if case=='bad-http' else b'403' if case=='http' else b'200',b'PRIVATE_RAW_ERROR_SENTINEL' if case=='http' else b'')
+                real_mkdir=m.os.mkdir
+                def mkdir(name,*args,**kw):
+                    if name=='flowzer-cli27-verified' and case=='store':raise PermissionError('PRIVATE_RAW_ERROR_SENTINEL')
+                    return real_mkdir(name,*args,**kw)
+                with mock.patch.object(m,'source_guard',side_effect=m.old.FixtureFailure('SOURCE') if case=='source' else None,return_value={'mode':'runtime-channel-v1'}),mock.patch.object(m,'package_pin',return_value=pin),mock.patch.object(m.old.transport.BoundedPipe,'exchange',side_effect=exchange),mock.patch.object(m.os,'mkdir',side_effect=mkdir),mock.patch.dict(m.os.environ,{'RUNNER_TEMP':str(root)}),mock.patch.object(m.sys,'argv',['fixture','--prepare-client-only']),contextlib.redirect_stdout(output):
+                    self.assertEqual(m.main(),2)
+                self.assertEqual(len(calls),0 if case=='source' else 1);self.assertNotIn('PRIVATE_RAW_ERROR_SENTINEL',output.getvalue())
+                lines=[line.removeprefix('CLI27_PREPARE_SAFE ') for line in output.getvalue().splitlines() if line.startswith('CLI27_PREPARE_SAFE ')]
+                self.assertEqual(len(lines),1);d=json.loads(lines[0])
+                self.assertEqual(set(d),{'stage','exit','httpStatus','transportCode','ownPid'})
+                self.assertEqual(d['stage'],expected)
+                self.assertEqual(d['exit'],None if case in ('source','download','handle','bad-exit') else 22 if case=='http' else 0)
+                self.assertEqual(d['httpStatus'],None if case in ('source','download','handle','bad-http') else 403 if case=='http' else 200)
+                self.assertEqual(d['transportCode'],'HANDLE_UNKNOWN' if case=='handle' else 'OS_ERROR' if case=='download' else None)
+                self.assertEqual(d['ownPid'],12345 if case=='handle' else None)
+                # Unbekannter eigener Writer darf keinen neuen Dateilöschschritt auslösen.
+                self.assertEqual((root/'flowzer-cli27-package.download').exists(),case=='handle')
+
     def test_client_fd_remaps_only_binary_and_never_falls_back_to_system(self):
         # Testzweck: authentifizierter FD bleibt bis Originalreturn offen; alle übrigen Argumente unverändert.
         port=m.CombinedPipe(lambda:None,self.plan());argv=['/usr/bin/docker','--host','unix:///var/run/docker.sock','image','inspect',m.API_IMAGE]

@@ -118,9 +118,11 @@ class ClientBinding:
         except BaseException:os.close(fd);raise
 
 
-def store_client(parent,raw,pin):
+def store_client(parent,raw,pin,on_store=None):
     """Exklusiv nur Client und öffentliche Bindung speichern, keine Installation."""
-    binary=client_from_package(raw,pin);root=os.open(parent,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+    binary=client_from_package(raw,pin)
+    if on_store is not None:on_store()
+    root=os.open(parent,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
     try:
         st=os.fstat(root);require(st.st_uid==os.getuid() and not stat.S_IMODE(st.st_mode)&0o022,'SOURCE')
         os.mkdir('flowzer-cli27-verified',0o700,dir_fd=root);directory=os.open('flowzer-cli27-verified',os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=root)
@@ -153,24 +155,43 @@ def load_client(parent):
     binding=ClientBinding(directory,f,pin['binarySha256']);fd=binding.open_verified();os.close(fd);return binding
 
 
-def prepare_client(parent,guard):
-    """Späterer einziger gebundener öffentlicher Download, nie beim Import/PGmodus.
+def prepare_diagnostic():
+    """Feste sichere Projektion, auch vor Runtime-/Artifact-Verzeichnis vorhanden."""
+    return dict(stage='SOURCE',exit=None,httpStatus=None,transportCode=None,ownPid=None)
 
-    curl wird über denselben begrenzten Pipekern geführt. Nur öffentliche Bytes
-    gehen in einen vorab exklusiv geöffneten eigenen FD, nicht in Rohlogs.
+
+def prepare_client(parent,guard,diagnostic=None):
+    """Gebundener Download mit festen Teilmeilensteinen, nie Rohfehlerdiagnose.
+
+    Die Diagnose ändert weder Transportgrenzen noch Authentifizierung. Ein
+    unbekannter eigener Writer wird gemeldet, nicht mit Dateicleanup übergangen.
     """
+    d=diagnostic if diagnostic is not None else prepare_diagnostic()
     guard();pin=package_pin();root=os.open(parent,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
     try:
         st=os.fstat(root);require(st.st_uid==os.getuid() and not stat.S_IMODE(st.st_mode)&0o022,'SOURCE')
         fd=os.open('flowzer-cli27-package.download',os.O_RDWR|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600,dir_fd=root)
         try:
-            target='/proc/'+str(os.getpid())+'/fd/'+str(fd)
-            r=old.transport.BoundedPipe().exchange(['/usr/bin/curl','--disable','--proto','=https','--max-time','60','--max-filesize',str(16*1024*1024),'--fail','--silent','--show-error','--write-out','%{http_code}','--output',target,pin['url']],b'',[],timeout=65)
-            require(r.exit_code==0 and r.stdout==b'200' and not r.stderr,'SOURCE');guard()
-            require(os.fstat(fd).st_size==pin['size'],'SOURCE');os.lseek(fd,0,os.SEEK_SET)
+            target='/proc/'+str(os.getpid())+'/fd/'+str(fd);d['stage']='DOWNLOAD'
+            try:r=old.transport.BoundedPipe().exchange(['/usr/bin/curl','--disable','--proto','=https','--max-time','60','--max-filesize',str(16*1024*1024),'--fail','--silent','--show-error','--write-out','%{http_code}','--output',target,pin['url']],b'',[],timeout=65)
+            except old.transport.TransportFailure as error:
+                d['transportCode']=error.code
+                if type(error.own_pid) is int and 0<error.own_pid<2**31:d['ownPid']=error.own_pid
+                raise
+            d['stage']='HTTP'
+            if type(r.exit_code) is int and -255<=r.exit_code<=255:d['exit']=r.exit_code
+            if type(r.stdout) is bytes and re.fullmatch(rb'[1-5][0-9]{2}',r.stdout):d['httpStatus']=int(r.stdout)
+            require(d['exit']==0 and r.stdout==b'200' and not r.stderr,'SOURCE');guard()
+            d['stage']='SIZE';require(os.fstat(fd).st_size==pin['size'],'SOURCE');os.lseek(fd,0,os.SEEK_SET)
             with os.fdopen(os.dup(fd),'rb') as stream:raw=stream.read(16*1024*1024+1)
-            return store_client(parent,raw,pin)
-        finally:os.close(fd);os.unlink('flowzer-cli27-package.download',dir_fd=root)
+            require(len(raw)==pin['size'] and len(raw)<=16*1024*1024,'SOURCE')
+            d['stage']='HASH';require(hashlib.sha256(raw).hexdigest()==pin['sha256'],'SOURCE')
+            d['stage']='ARCHIVE'
+            client=store_client(parent,raw,pin,on_store=lambda:d.update(stage='STORE'))
+            d['stage']='COMPLETE';return client
+        finally:
+            os.close(fd)
+            if d['transportCode']!='HANDLE_UNKNOWN' and d['ownPid'] is None:os.unlink('flowzer-cli27-package.download',dir_fd=root)
     finally:os.close(root)
 
 
@@ -395,11 +416,12 @@ def run(plan,guard):
 
 def main():
     if sys.argv[1:] not in (['--preflight-only'],['--once'],['--prepare-client-only']):print('RUNTIME_CHANNEL_SOURCE_ONLY');return 0
+    diagnostic=prepare_diagnostic() if sys.argv[1:]==['--prepare-client-only'] else None
     try:
         plan=source_guard(os.environ)
         if sys.argv[1:]==['--prepare-client-only']:
             if plan['mode']=='pg-channel-v1':print('PG_MODE_NO_CLIENT_DOWNLOAD');return 0
-            prepare_client(Path(os.environ['RUNNER_TEMP']),lambda:source_guard(os.environ))
+            prepare_client(Path(os.environ['RUNNER_TEMP']),lambda:source_guard(os.environ),diagnostic)
             print('VERIFIED_CLI27_CLIENT_PREPARED');return 0
         if plan['mode']=='pg-channel-v1':return old.main()
         if sys.argv[1:]==['--preflight-only']:print('RUNTIME_CHANNEL_PREFLIGHT_OK');return 0
@@ -414,6 +436,8 @@ def main():
         with os.fdopen(fd,'wb') as stream:stream.write(raw);stream.flush();os.fsync(stream.fileno())
         print(json.dumps(dict(result=proof['result'],cleanup=proof['cleanup'],ownHandles=proof['ownHandles'])))
         return 0 if proof['result']=='PASS' else 2
-    except BaseException:print('RUNTIME_CHANNEL_STOP_NO_RAW_OUTPUT');return 2
+    except BaseException:
+        if diagnostic is not None:print('CLI27_PREPARE_SAFE '+json.dumps(diagnostic,separators=(',',':')))
+        print('RUNTIME_CHANNEL_STOP_NO_RAW_OUTPUT');return 2
 
 if __name__=='__main__':raise SystemExit(main())
