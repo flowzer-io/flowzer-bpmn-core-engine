@@ -403,7 +403,9 @@ class RuntimePorts:
         require(len(statuses)<=1)
         if not statuses:
             require(result.exit_code==4);return 0,b''
-        status=int(statuses[0]);require((status==200 and result.exit_code==0) or (status in (401,503) and result.exit_code==8))
+        # GNU Wget meldet echte401-Challenges mit Exit6, nicht generischem8.
+        # Der Exit allein ist nie Authbeleg: Status und Clientexit müssen exakt passen.
+        status=int(statuses[0]);require((status,result.exit_code) in ((200,0),(401,6),(503,8)))
         return status,result.stdout
 
     @port

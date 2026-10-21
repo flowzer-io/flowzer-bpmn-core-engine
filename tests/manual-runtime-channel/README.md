@@ -166,3 +166,19 @@ ELF-SHA-/Größenbindung ändern sich nicht. Der Datenbefund erklärt einen kaus
 aktuellen Sourceblocker, beweist aber ohne nativen Diagnosemarker nicht rückwirkend
 die Ursache der historischen Preparefehler. Weitere echte Downloads oder
 Hostedversuche bleiben gesondert freizugeben.
+
+
+## HTTPstatus und tatsächlicher Wget-Exit
+
+Der Adapter prüft HTTPstatus und Clientexit gemeinsam:200/0,401/6,503/8.
+Exit6 allein ist niemals ein401-Beleg. Fehlender HTTPstatus ist ausschließlich
+mit Netzwerkexit4 ein noch nicht bereiter Versuch; Redirects und TLSfehler
+bleiben gesperrt. GNUWget dokumentiert6 als Authentifizierungsfehler und8 als
+Serverfehler ([Primärdokumentation](https://www.gnu.org/software/wget/manual/html_node/Exit-Status.html)).
+Ein versions-/Binärdigest-gebundener echter lokaler GNUWget1.25.0-Test gegen
+ausschließlich eigenen Loopback hat200/0,503/8,302/8 und401/6 reproduziert; die
+unveränderten Argumente folgen keinem Redirect. Falsche Paare und fehlender
+Status bleiben negativ. Die lokale Clientversion ist kein Beleg für die
+unbekannte Wget-Version oder den fehlenden HTTPstatus des historischen nativen
+API_PROOF-Fehlers. Lauf39521401694 bestätigte CLI27, Migration22 und CleanupABSENT,
+aber noch keine Readiness-/401-/Restart-Abnahme.

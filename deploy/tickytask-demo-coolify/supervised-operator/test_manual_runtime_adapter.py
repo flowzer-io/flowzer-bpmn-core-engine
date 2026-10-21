@@ -1,4 +1,5 @@
 """Testzweck: vollständige manuelle Ports mit Fakes, keine reale SSH-/Docker-/DBausführung."""
+import hashlib
 import importlib.util,sys,json,unittest,shlex,tarfile,io,subprocess,dataclasses,http.server,socketserver,threading,tempfile,shutil,os
 from urllib.parse import urlsplit
 from pathlib import Path
@@ -84,7 +85,7 @@ class Pipe:
             status=302 if self.bad=='redirect' else 401 if args[-1].endswith('/Definition') else 200
             err=('  HTTP/1.1 '+str(status)+' OK\n').encode()
             if status==200:out=json.dumps(dict(successful=True,result=dict(status='Healthy',storage='Ready',details=dict(storageProvider='PostgreSQL (schema flowzer)',migrationState='UpToDate',pendingMigrationCount=0,expectedMigrationVersion=22,expressionEngine='Simple' if self.bad=='feel' else 'Feel')))).encode()
-            return t.PipeResult(0 if status==200 else 8,out,err)
+            return t.PipeResult(0 if status==200 else 6 if status==401 else 8,out,err)
         return t.PipeResult(0,out,err)
 class RuntimeTests(unittest.TestCase):
     def make(self,mode='initial',pipe=None):
@@ -302,6 +303,51 @@ class RuntimeTests(unittest.TestCase):
         with self.assertRaises(op.OperatorFailure):op.ManualOperator().run('initial',ports,lambda:delivered.append(True))
         self.assertEqual(delivered,[]);self.assertEqual(len(p.calls),1)
         self.assertEqual(p.calls[0][0],['version','--format','{{json .Client.Version}}'])
+
+    def test_actual_wget_status_exit_contract_against_only_owned_loopback(self):
+        # Testzweck: echter GNU-Wget-401/6-Vertrag statt synthetisch erfundenem Exit8; kein externer Zugriff.
+        executable=Path(shutil.which('wget')).resolve();digest=hashlib.sha256(executable.read_bytes()).hexdigest()
+        version=t.BoundedPipe().exchange([str(executable),'--version'],b'',[],timeout=3)
+        match=a.re.match(rb'GNU Wget ([0-9]+(?:\.[0-9]+){1,2}) ',version.stdout);self.assertIsNotNone(match)
+        self.assertEqual(version.exit_code,0);requested=[];seen=[]
+        class Handler(http.server.BaseHTTPRequestHandler):
+            protocol_version='HTTP/1.1'
+            def log_message(self,*args):pass
+            def do_GET(self):
+                requested.append(self.path);status=int(self.path[1:]) if self.path in ('/200','/401','/503','/302') else 500
+                self.send_response(status);self.send_header('Content-Length','0')
+                if status==401:self.send_header('WWW-Authenticate','Bearer')
+                if status==302:self.send_header('Location','http://127.0.0.1:'+str(self.server.server_port)+'/unexpected')
+                self.end_headers()
+        server=http.server.HTTPServer(('127.0.0.1',0),Handler);thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+        ports,_=self.make();ports.api_cid='d'*64
+        def raw(args,**kwargs):
+            offset=args.index('wget');argv=[str(executable),*args[offset+1:]]
+            # Nur Port des eigenen Fakes anders; alle Wget-Flags und localhost bleiben gleich.
+            argv[-1]=argv[-1].replace('127.0.0.1:8080','127.0.0.1:'+str(server.server_port))
+            result=t.BoundedPipe().exchange(argv,b'',[],timeout=kwargs['timeout'])
+            statuses=a.re.findall(rb'(?m)^\s*HTTP/[0-9.]+ ([0-9]{3})[^\r\n]*\r?$',result.stderr)
+            seen.append(dict(requestedStatus=int(argv[-1].rsplit('/',1)[1]),httpStatus=int(statuses[0]) if len(statuses)==1 else None,clientExit=result.exit_code))
+            return result
+        ports._raw=raw
+        try:
+            self.assertEqual(ports._http('/200',5),(200,b''));self.assertEqual(ports._http('/503',5),(503,b''))
+            with self.assertRaises(op.PortFailure):ports._http('/302',5)
+            self.assertEqual(ports._http('/401',5),(401,b''))
+        finally:
+            server.shutdown();server.server_close();thread.join(3);self.assertFalse(thread.is_alive())
+            self.assertEqual(hashlib.sha256(executable.read_bytes()).hexdigest(),digest)
+            self.assertNotIn('/unexpected',requested)
+            print('WGET_LOCAL_CONTRACT_SAFE '+json.dumps(dict(clientVersion=match[1].decode(),binarySha256=digest,cases=seen,ownHandles=0),separators=(',',':')))
+        self.assertEqual(seen[-1],dict(requestedStatus=401,httpStatus=401,clientExit=6))
+
+    def test_http_status_and_exit_must_match_and_no_status_is_not_auth_proof(self):
+        # Testzweck: Exit6 allein, falsche Status-/Exitpaare, Redirects und TLSfehler nie als401 auslegen.
+        ports,_=self.make();ports.api_cid='d'*64
+        for status,exit in [(200,6),(503,6),(401,0),(401,4),(401,8),(302,6),(302,8),(None,6),(None,5)]:
+            stderr=b'' if status is None else ('  HTTP/1.1 '+str(status)+' TEST\n').encode()
+            with self.subTest(status=status,exit=exit),mock.patch.object(ports,'_raw',return_value=t.PipeResult(exit,b'',stderr)),self.assertRaises(op.PortFailure):ports._http('/Definition',3)
+        with mock.patch.object(ports,'_raw',return_value=t.PipeResult(4,b'',b'')):self.assertEqual(ports._http('/health/ready',3),(0,b''))
 
     def test_invalid_settings_block_before_remote_io(self):
         # Testzweck: keine Broadproxy-/fremdeRealm-/clearHTTP-/Rootuserbindung.
