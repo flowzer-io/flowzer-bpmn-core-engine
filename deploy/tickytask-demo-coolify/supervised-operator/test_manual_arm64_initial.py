@@ -130,6 +130,27 @@ class ChannelTests(unittest.TestCase):
   channel.stage='PULL_PG';base.exchange.side_effect=None
   with self.assertRaises(m.Stop):channel.exchange(channel.target.argv(['image','pull','--quiet','--platform','linux/arm64',m.PG_REF]),b'',[],timeout=5)
   self.assertEqual(base.exchange.call_count,1)
+ def test_unknown_ssh_exit_or_invalid_status_blocks_all_later_calls_and_cleanup(self):
+  # Testzweck: lokales SSHende255/Signal/ungültig bestätigt niemals das entfernte Writerende.
+  for status in (255,-15,-1,True,False,None,'0',256,10**20):
+   with self.subTest(status=status):
+    channel,base,modules=self.channel();channel.stage='INITIAL';base.exchange.return_value=modules['manual_transport'].PipeResult(status,b'',b'')
+    with self.assertRaises(m.Stop):channel.call(['container','exec','b'*64,'/usr/bin/true'],write=True)
+    self.assertTrue(channel.writer_unknown);self.assertIsNone(channel.own_pid)
+    self.assertEqual(modules['manual_arm64_initial_cleanup'].cleanup(channel,{},mock.Mock()),'UNKNOWN')
+    base.exchange.return_value=modules['manual_transport'].PipeResult(0,b'',b'');channel.stage='PULL_API'
+    for args in (['image','pull','--quiet','--platform','linux/arm64',m.API_REF],['version','--format',m.VERSION_FORMAT]):
+     with self.assertRaises(m.Stop):channel.call(args)
+    self.assertEqual(base.exchange.call_count,1)
+ def test_confirmed_remote_docker_exit_is_not_an_unknown_writer(self):
+  # Testzweck: endliche bestätigte Dockerfehler sind kein SSH255-/Signalverlust; keine stille Fehlerlockerung.
+  for status in (0,1,125,126,127,254):
+   with self.subTest(status=status):
+    channel,base,modules=self.channel();channel.stage='INITIAL';base.exchange.return_value=modules['manual_transport'].PipeResult(status,b'',b'')
+    if status==0:self.assertEqual(channel.call(['container','exec','b'*64,'/usr/bin/true']),b'')
+    else:
+     with self.assertRaises(m.Stop):channel.call(['container','exec','b'*64,'/usr/bin/true'])
+    self.assertFalse(channel.writer_unknown);self.assertIsNone(channel.own_pid)
  def test_unknown_write_preserves_own_handle_and_blocks_cleanup(self):
   # Testzweck: unbekannter eigener SSHwriter ist kein Beleg für sicheren konkurrierenden Remove.
   channel,base,modules=self.channel();channel.stage='PULL_API';base.exchange.side_effect=modules['manual_transport'].TransportFailure('TIMEOUT',12345)

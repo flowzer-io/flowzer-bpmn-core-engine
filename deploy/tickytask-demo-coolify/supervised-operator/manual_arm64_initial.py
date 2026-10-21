@@ -285,7 +285,13 @@ class Channel:
    pid=getattr(error,'own_pid',None)
    if type(pid) is int and pid>0:self.own_pid=pid
    raise
-  self.last_exit=result.exit_code if type(result.exit_code) is int else None
+  status=result.exit_code
+  self.last_exit=status if type(status) is int and -128<=status<=255 else None
+  # SSH255 oder ein lokales Signal bestätigt nicht, dass der entfernte Writer endete.
+  # Auch bool/None/Strings/Ausreißer sind kein gültiger Remoteexit; kein Cleanup daneben.
+  if type(status) is not int or not 0<=status<255:
+   if write:self.writer_unknown=True
+   raise Stop('UNKNOWN')
   self._remaining();return result
  def call(self,args,*,write=False,cleanup=False,timeout=15):
   """Kleine gebundene Metadaten-/Pull-/Cleanupcalls, keine zusätzliche Pipe."""
