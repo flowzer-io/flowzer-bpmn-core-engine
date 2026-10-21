@@ -1,19 +1,18 @@
 # Manueller Operator: STDIN-Kanal und Lebensdauer
 
 **Sourcearbeit, keine Ausführungserlaubnis.** Eigener Cool3-Demokontext, keine
-Production. Implementiert sind derzeit der begrenzte lokale Pipe-Transportkern
-und die einmalige Initial-/Restart-Sequenz mit injizierten Ports. Hinzu kommen
-die reinen SQL-/Readinessprotokolle weiter unten. Der konkrete initiale PG-/SSH-/Dockeradapter ist jetzt als Source vorhanden,
-der **historische a7fc-PG-Kanal** ist auf isoliertem Linux/amd64 qualifiziert.
-Die heutige Adapterquelle ergänzt weitere IPC-/Inspectprüfungen und ist deshalb
-nochmals kombiniert nativ zu qualifizieren. Die konkreten Runtime-/Restartports
-sind ebenfalls als Source vorhanden, bleiben
-aber vor kombinierter Native-/Privatabnahme geschlossen. Host-/Imageattestierung
-und tatsächliche Demo-/Keycloak-/HTTPS-/TT-Abnahme bleiben **offen**.
-Die Argumentbuilder sind nur Kanalfragmente ohne vollständige Auth-/Mount-/
-Netz-/Ressourcenbindung und dürfen nicht als Betriebsstart benutzt werden.
-Die vorherige Komposition `dae1b4d` bleibt ein eigener geprüfter
-Checkpoint. Ohne separaten Root-Slot werden weder SSH noch Docker/PG/API gestartet.
+Production. Pipe, Initial-/Restartsequenz sowie konkrete PG-/STDIN-/Runtime-/
+Readinessports sind implementiert. Der isolierte synthetische ARM64-Initiallauf
+auf Operatorquelle `293640c` und Appquelle `a7fcde7` hat Head22/Pending0, FEEL und
+anonyme401 mit vollständigem eigenem Cleanup belegt. Sein einmaliges Go ist
+verbraucht; es ist weder persistent noch eine echte Keycloak-/HTTPS-/TT-Abnahme.
+
+Der neue [persistente Caller](PERSISTENT.md) verwendet dieselben sechs Coremodule
+und SQL-Verträge, erhält Datenressourcen auch bei Fehler/UNKNOWN und enthält keinen
+Secretresolver oder automatischen Wiederanlauf. Seine reale private Root-, Peer-,
+Proxy-/Console- und Directorybindung bleibt **NOT_ISSUED**. Import und CLI bleiben
+SOURCE_ONLY. Keine Host-/API-/Secret-/Runtimeaktion folgt aus einem Source-Test.
+Die nativen Coolify-ENV-/Restartpfade bleiben für diesen Vertrag geschlossen.
 
 ## Verbindlicher Transport vor Implementierung
 

@@ -28,8 +28,8 @@ dessen Initialisierung darf nicht auf persistente Demo-Daten angewendet werden.
    `down -v`, Reset, Backup oder Rollen-Overwrite als Fehlerbehandlung.
    Rollen-/Schemahoheit bleibt bei `deploy/postgresql/01…` und `02…`:
    Runtime kein DDL/Superuser/CreateRole/CreateDB, Historie nur lesbar;
-   Migration über die getrennte Migrationsrolle. Die sichere operative
-   PG-Initialisierung/Passwortzuführung ist noch separat zu implementieren.
+   Migration über die getrennte Migrationsrolle. Die operativen PG-/STDIN-Adapter sind inzwischen als Source vorhanden;
+   private Erststarts benötigen weiterhin ihre eigene tatsächliche Rootbindung.
 3. **Explizit migrieren:** Der eigene Prozess erhält genau
    `--migrate --secrets-stdin` und ein frisches rollenpassendes JSONpaket über
    den geprüften stdin-Kanal, danach EOF. Die DDL-Verbindung erreicht nur diesen
@@ -73,7 +73,9 @@ Treiber oder Betriebssysteme; private Runtime bleibt bis Kanalabnahme geschlosse
 
 ## Kleinste noch offene technische Entscheidung
 
-Ein persistenter operativer Feeder/Launcher ist nicht vorhanden. Zwei Wege:
+Der dünne persistente [Caller](../deploy/tickytask-demo-coolify/supervised-operator/PERSISTENT.md)
+ist als Source vorhanden. Seine reale private Root-/Topologie-/Secretbindung ist
+noch **nicht ausgestellt**. Die beiden Wege bleiben klar getrennt:
 
 - **Bevorzugt:** sehr kleiner manueller Operator über die vorhandenen gebundenen
   Docker-/SSH-stdin-/Attachkanäle, feste eigene Container und Zustände,
@@ -91,6 +93,11 @@ zurückgefallen. Dieser offen benannte Rest ist kein fehlgeschlagenes Demo-Deplo
 Die [manuelle Operatorquelle](../deploy/tickytask-demo-coolify/supervised-operator/README.md)
 ergänzt nun begrenzte echte lokale Pipe-Fixtures und die einmalige Initial-/Restart-
 Sequenz über injizierte Ports. Sie startet bei Import/CLI keine privaten Dienste.
-Die vollständigen SSH-/Docker-/PG-/SQL-/Readinessadapter sind noch nicht implementiert;
-deshalb bleibt die private Runtimegrenze unverändert geschlossen. Insbesondere
-ersetzt ein erfolgreicher Fake-Portablauf keinen realen Head22-/Rollennachweis.
+Die konkreten SSH-/Docker-/PG-/SQL-/Readinessadapter sind inzwischen vorhanden.
+Der isolierte synthetische ARM64-Initialversuch auf Operatorquelle `293640c`
+(Appquelle `a7fcde7`) hat Head22/Pending0, FEEL und anonyme401 mit anschließendem
+eigenem vollständigem Cleanup belegt. Er ist **kein** persistenter Demo-,
+Keycloak-, HTTPS- oder TT-Nachweis und wird nicht erneut verwendet.
+`manual_persistent.py` komponiert dieselben Originalports ohne Remote-Cleanup;
+sein Import/CLI bleiben inert und seine Tests vollständig synthetisch. Die echte
+persistente Runtimegrenze bleibt bis separater Rootöffnung geschlossen.
