@@ -179,6 +179,19 @@ class Contracts(unittest.TestCase):
         for bad,p in [(raw,dict(pin,sha256='0'*64)),(raw,dict(pin,binarySha256='0'*64)),(raw[:-1],pin),(self.synthetic_package(binary=b'not-elf')[0],None),(self.synthetic_package(link=True)[0],None)]:
             if p is None:p=dict(sha256=hashlib.sha256(bad).hexdigest(),size=len(bad),binarySha256=hashlib.sha256(binary).hexdigest(),binarySize=len(binary))
             with self.assertRaises(m.old.FixtureFailure):m.client_from_package(bad,p)
+    def test_known_official_fourth_signature_member_is_bounded_last_and_not_extracted(self):
+        # Testzweck: offizieller vierter ar-Signaturmember blockiert nicht die gepinnte ELF; keine Formatlockerung.
+        raw,binary=self.synthetic_package()
+        def member(name,content):
+            header=(name+'/').ljust(16).encode()+b'0'.ljust(12)+b'0'.ljust(6)+b'0'.ljust(6)+b'100644'.ljust(8)+str(len(content)).ljust(10).encode()+b'`\n'
+            return header+content+(b'\n' if len(content)%2 else b'')
+        signature=member('_gpgbuilder',b's'*1248);valid=raw+signature
+        def pin(data):return dict(size=len(data),sha256=hashlib.sha256(data).hexdigest(),binarySize=len(binary),binarySha256=hashlib.sha256(binary).hexdigest())
+        self.assertEqual(m.client_from_package(valid,pin(valid)),binary)
+        # Unbekannt, doppelt, zu groß oder vor den drei Datenmembern: immer gesperrt.
+        for bad in [raw+member('_unknown',b'x'),valid+signature,raw+member('_gpgbuilder',b's'*2049),raw[:8]+signature+raw[8:]]:
+            with self.subTest(bytes=len(bad)),self.assertRaises(m.old.FixtureFailure):m.client_from_package(bad,pin(bad))
+
     def test_client_binding_stable_fd_and_tamper_rejected_without_execution(self):
         # Testzweck: Runner-Tempbindung darf weder Symlink/Modus-/Hashdrift noch Systemfallback erlauben.
         raw,binary=self.synthetic_package()

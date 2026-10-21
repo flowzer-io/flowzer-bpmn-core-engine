@@ -65,10 +65,15 @@ def client_from_package(raw,pin):
     while offset<len(raw):
         header=raw[offset:offset+60];require(len(header)==60 and header[-2:]==b'`\n','SOURCE')
         name=header[:16].decode('ascii').strip().removesuffix('/');size=int(header[48:58]);offset+=60
-        require(name in ('debian-binary','control.tar.xz','control.tar.gz','data.tar.xz') and name not in members and 0<=size<=16*1024*1024 and offset+size<=len(raw),'SOURCE')
+        require(name in ('debian-binary','control.tar.xz','control.tar.gz','data.tar.xz','_gpgbuilder') and name not in members and 0<=size<=16*1024*1024 and offset+size<=len(raw),'SOURCE')
+        if name=='_gpgbuilder':
+            # Offizielles gepinntes DEB enthält diesen vierten Signaturmember.
+            # Nur begrenzt/zuletzt ignorieren, nie als neuen Trustanker benutzen.
+            require(len(members)==3 and members.get('debian-binary')==b'2.0\n' and 'data.tar.xz' in members
+                    and 0<size<=2048 and offset+size+size%2==len(raw),'SOURCE')
         members[name]=raw[offset:offset+size];offset+=size
         if size%2:require(raw[offset:offset+1]==b'\n','SOURCE');offset+=1
-    require(offset==len(raw) and len(members)==3 and members.get('debian-binary')==b'2.0\n' and 'data.tar.xz' in members,'SOURCE')
+    require(offset==len(raw) and len(members) in (3,4) and members.get('debian-binary')==b'2.0\n' and 'data.tar.xz' in members,'SOURCE')
     found=None;expanded=0
     with tarfile.open(fileobj=io.BytesIO(members['data.tar.xz']),mode='r|xz') as archive:
         for index,item in enumerate(archive):

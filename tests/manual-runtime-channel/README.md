@@ -151,3 +151,18 @@ weiterhin kein erfundenes Runtimeartifact: fehlendes Artifact bleibt UNKNOWN.
 Der historische Lauf39518761226 scheiterte vor den Pure-/27-Positiv-/Runtime-
 Schritten; seine konkrete Prepare-Ursache wurde nicht belegt und bleibt UNKNOWN.
 Ein Diagnosefix ist keine Berechtigung zu Download, Ausführung oder neuem Dispatch.
+
+
+## Offizieller vierter ar-Member
+
+Die einmalige authentifizierte DATA-only-Prüfung des tatsächlich gepinnten DEB
+hat neben `debian-binary`, `control.tar.xz` und `data.tar.xz` den abschließenden
+Signaturmember `_gpgbuilder` (1248Bytes) belegt. Der Parser ignoriert ausschließlich
+diesen bekannten vierten Member, höchstens2048Bytes und nur nach den drei
+Datenmembern am Archivende. Er wird weder extrahiert noch ausgeführt oder als
+Vertrauensanker verwendet. Unbekannte, doppelte, zu große und falsch platzierte
+Member bleiben gesperrt. Die äußere authentifizierte Paket-SHA und die feste
+ELF-SHA-/Größenbindung ändern sich nicht. Der Datenbefund erklärt einen kausalen
+aktuellen Sourceblocker, beweist aber ohne nativen Diagnosemarker nicht rückwirkend
+die Ursache der historischen Preparefehler. Weitere echte Downloads oder
+Hostedversuche bleiben gesondert freizugeben.
