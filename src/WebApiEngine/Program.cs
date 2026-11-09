@@ -13,8 +13,33 @@ using WebApiEngine.Persistence;
 using WebApiEngine.Ai;
 using WebApiEngine.Connectors;
 using WebApiEngine.InboundTriggers;
+using WebApiEngine.Configuration;
 
-var builder = WebApplication.CreateBuilder(args);
+// stdin zuerst einlösen: Vor Konfigurationsbindung und jedem API-/Migrationsstart.
+// Der Modus ist explizit; normale Installationen behalten ihre bisherige Konfiguration.
+var secretInput = await RuntimeSecretInput.LoadAsync(args);
+if (!secretInput.Accepted)
+{
+    Console.Error.WriteLine(RuntimeSecretInput.RejectionMessage);
+    return 2;
+}
+args = secretInput.Arguments;
+WebApplicationBuilder builder;
+try
+{
+    builder = WebApplication.CreateBuilder(args);
+    if (secretInput.Selected && !RuntimeSecretConfiguration.TryApply(secretInput, builder.Configuration))
+    {
+        Console.Error.WriteLine(RuntimeSecretInput.RejectionMessage);
+        return 2;
+    }
+}
+catch (Exception) when (secretInput.Selected)
+{
+    // Keine Parser-/Provider-Ausnahme mit möglicherweise sensiblen Nutzlasten ausgeben.
+    Console.Error.WriteLine(RuntimeSecretInput.RejectionMessage);
+    return 2;
+}
 
 // Getrennter Migrationsschritt (Compose-Dienst `migrate` bzw. manuell): keine Host-Pipeline,
 // nur die Datenbank auf den Stand der eingebetteten Migrationen bringen. RunMigrationsAsync

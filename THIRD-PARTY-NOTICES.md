@@ -15,7 +15,7 @@ Drittanbieter-Code und daher ausgenommen.
 
 Ein ⚠️ markiert Pakete, deren Lizenz manuell geprüft werden sollte (nicht ohne
 Weiteres als unproblematisch für eine MPL-2.0-Nutzung eingestuft, unklar oder nicht
-automatisch ermittelbar). Aktuell 6 von 77
+automatisch ermittelbar). Aktuell 6 von 78
 Einträgen.
 
 ## .NET (NuGet)
@@ -41,7 +41,7 @@ den nuspec-Metadaten des lokalen NuGet-Cache.
 | Microsoft.Extensions.TimeProvider.Testing | 9.10.0 | MIT | `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj` |
 | Microsoft.NET.Test.Sdk | 18.4.0 | MIT | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj`, `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`, `src/core-engine-tests/core-engine-tests.csproj` |
 | Newtonsoft.Json | 13.0.4 | MIT | `src/Model/Model.csproj`, `src/PostgreSqlStorageSystem/PostgreSqlStorageSystem.csproj`, `src/WebApiEngine.Shared/WebApiEngine.Shared.csproj`, `src/core-engine/core-engine.csproj` |
-| Npgsql | 10.0.3 | PostgreSQL | `src/PostgreSqlStorageSystem/PostgreSqlStorageSystem.csproj` |
+| Npgsql | 10.0.3 | PostgreSQL | `src/PostgreSqlStorageSystem/PostgreSqlStorageSystem.csproj`, `tests/runtime-bootstrap-smoke/SmokeFeeder.csproj` |
 | NUnit | 4.5.1 | MIT | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj`, `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`, `src/core-engine-tests/core-engine-tests.csproj` |
 | NUnit.Analyzers | 4.12.0 | MIT | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj`, `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`, `src/core-engine-tests/core-engine-tests.csproj` |
 | NUnit3TestAdapter | 6.2.0 | MIT | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj`, `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`, `src/core-engine-tests/core-engine-tests.csproj` |
@@ -51,6 +51,7 @@ den nuspec-Metadaten des lokalen NuGet-Cache.
 | OpenTelemetry.Extensions.Hosting | 1.18.0 | Apache-2.0 | `src/WebApiEngine/WebApiEngine.csproj` |
 | OpenTelemetry.Instrumentation.AspNetCore | 1.18.0 | Apache-2.0 | `src/WebApiEngine/WebApiEngine.csproj` |
 | Swashbuckle.AspNetCore | 10.2.3 | MIT | `src/WebApiEngine/WebApiEngine.csproj` |
+| System.Security.Cryptography.Pkcs | 10.0.13 | MIT | `src/WebApiEngine/WebApiEngine.csproj` |
 | Testcontainers.PostgreSql | 4.14.0 | MIT | `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj` |
 
 ## JavaScript/TypeScript (npm)
@@ -106,9 +107,9 @@ Lizenz aus dem jeweils installierten `node_modules/<paket>/package.json`.
 | tailwind-merge | 3.6.0 | MIT | `src/FlowzerConsole` |
 | tailwindcss | 4.3.3 | MIT | `src/FlowzerConsole` |
 | typescript | 5.9.3 | Apache-2.0 | `packages/flowzer-react`, `packages/flowzer-sdk`, `src/FlowzerConsole` |
-| typescript-eslint | 8.69.0 | MIT | `src/FlowzerConsole` |
-| vite | 6.4.3 | MIT | `src/FlowzerConsole` |
-| vitest | 5.0.0 | MIT | `packages/flowzer-react`, `packages/flowzer-sdk`, `src/FlowzerConsole` |
+| typescript-eslint | 8.72.1 | MIT | `src/FlowzerConsole` |
+| vite | 6.4.6 | MIT | `src/FlowzerConsole` |
+| vitest | 5.1.0 | MIT | `packages/flowzer-react`, `packages/flowzer-sdk`, `src/FlowzerConsole` |
 | zeebe-bpmn-moddle | 1.18.0 | MIT | `src/FlowzerConsole` |
 | zustand | 5.0.15 | MIT | `src/FlowzerConsole` |
 
