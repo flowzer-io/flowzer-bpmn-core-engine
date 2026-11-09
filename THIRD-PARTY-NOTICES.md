@@ -107,9 +107,9 @@ Lizenz aus dem jeweils installierten `node_modules/<paket>/package.json`.
 | tailwind-merge | 3.6.0 | MIT | `src/FlowzerConsole` |
 | tailwindcss | 4.3.3 | MIT | `src/FlowzerConsole` |
 | typescript | 5.9.3 | Apache-2.0 | `packages/flowzer-react`, `packages/flowzer-sdk`, `src/FlowzerConsole` |
-| typescript-eslint | 8.69.0 | MIT | `src/FlowzerConsole` |
-| vite | 6.4.3 | MIT | `src/FlowzerConsole` |
-| vitest | 5.0.0 | MIT | `packages/flowzer-react`, `packages/flowzer-sdk`, `src/FlowzerConsole` |
+| typescript-eslint | 8.72.1 | MIT | `src/FlowzerConsole` |
+| vite | 6.4.6 | MIT | `src/FlowzerConsole` |
+| vitest | 5.1.0 | MIT | `packages/flowzer-react`, `packages/flowzer-sdk`, `src/FlowzerConsole` |
 | zeebe-bpmn-moddle | 1.18.0 | MIT | `src/FlowzerConsole` |
 | zustand | 5.0.15 | MIT | `src/FlowzerConsole` |
 
