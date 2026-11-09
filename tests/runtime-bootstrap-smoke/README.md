@@ -82,7 +82,7 @@ beleg erhalten. Kein Adoptieren fremder Prozesse/CIDs oder automatisches Force-R
 Fachlicher Fehler und Schutzabbruch sind kein Rollbackversprechen. .NET-/Python-
 Strings sind nicht sicher löschbar; nur begrenzte Bytebuffer werden bestmöglich genullt.
 
-**Offener Reviewpunkt P3:** Der C#-Feeder sendet TERM nach `HasExited` an eine
+**Historischer Reviewpunkt P3 (vor dem Sourceabschluss unten):** Der C#-Feeder sendet TERM nach `HasExited` an eine
 numerische Kind-PID. PID-Wiederverwendung zwischen Prüfung und Signal ist nicht
 ausgeschlossen. Das Risiko liegt ausschließlich im eigenen exklusiven APIcontainer
 mit privatem PID-Namensraum, nicht als Hostsignal belegt. Ein stabiler Handle ist
@@ -303,3 +303,41 @@ Kein realer Dockerdaemon, kein Container/Image/Pull, kein Hostport. Eigene CLIgr
 Serverthread, Socket und Arbeitsbereich sind belegbar geschlossen/entfernt.
 Diese Reproduktion beweist den CLIvertrag auf diesem Fake, nicht rückwirkend die
 Fehlerursache oder den Cleanup der drei verbrauchten Hosted-Leases.
+
+
+## Sourceabschluss 09.11.2026: gebundene Kindidentität, kein neuer Livepilot
+
+Der historische numerische PID-P3 wird im Source durch `ChildSignal` eingegrenzt:
+Der API-Testcontainer verlangt jetzt `--init` und inspiziert `HostConfig.Init=true`.
+Vor dem ersten `Process.Start` prüft der Linux-x64/glibc-Feeder Nicht-PID1 sowie
+`sigaction(SIGCHLD)` = DFL ohne SA_NOCLDWAIT. Bei Abweichung startet kein Kind.
+Nur unter diesem engen, ausdrücklich geprüften Vertrag reapt .NET10 bekannte
+Kinder unter derselben ProcessWaitState-Sperre wie `HasExited` und aktualisiert
+dabei den Originalzustand. Die PID1-/SIG_IGN-`reapAll`-Variante ist ausgeschlossen.
+
+Direkt nach dem Start wird ein pidfd geöffnet und **danach** der ursprüngliche
+.NET-Kindzustand geprüft: War das Original schon gereapt, wird auch ein eventuell
+auf eine wiederverwendete PID zeigender fd ohne Signal verworfen. Nach erfolgreicher
+Bindung gehen TERM und ggf. best-effort KILL ausschließlich über diesen gehaltenen
+pidfd. ESRCH bedeutet nur, dass dieses gebundene Kind bereits beendet ist.
+Fehlendes pidfd/libc-/Kernel-Support, unbekannte Identität oder Cleanupfehler sind
+FAIL/UNKNOWN; es gibt keinen numerischen `kill`-/`Process.Kill`-Fallback.
+KILL bleibt ein fehlgeschlagener Cleanup, niemals positive Runtimeabnahme.
+
+Vier zusätzliche reine C#-Fakeverträge prüfen Reaper-Voraussetzungen,
+Acquire/Exit-Reihenfolge, denselben Handle für TERM/KILL und Failclosed bei Fehlern.
+Der CI-Anschluss erwartet jetzt vollständig **Python19/19 und C#19/19, skipped=0**.
+Die Docker-Inspect-Fakes lehnen fehlendes/falsches Init ab. Keine Probe startet
+reale Kinder, Docker, Datenbanken oder Netzverbindungen.
+
+Die historische erfolgreiche Probe auf `4b888d5` gilt unverändert nur für ihr
+altes Rezept. Sie ist **keine** Abnahme des hier geänderten `--init`-/pidfd-Rezepts.
+Ein tatsächlicher neuer Linux-Pilot und seine vollständige Ressourcen-/Output-/
+Cleanupabnahme bleiben offen und benötigen ein eigenes konkretes Go. Dieser
+Sourceabschluss startet keinen solchen Pilot und ist kein allgemeiner Supervisor-,
+Demo-, Produktiv-, Credential-, Keycloak- oder HTTPS-Nachweis. Der normale automatische
+main-Stagingpfad ist davon getrennt; der Pilotadapter wird dabei nicht ausgeführt.
+
+Begründungsquellen: [.NET10 ProcessWaitState](https://github.com/dotnet/runtime/blob/v10.0.0/src/libraries/System.Diagnostics.Process/src/System/Diagnostics/ProcessWaitState.Unix.cs),
+[.NET10 SIGCHLD/reapAll](https://github.com/dotnet/runtime/blob/v10.0.0/src/native/libs/System.Native/pal_signal.c),
+[pidfd_open](https://man7.org/linux/man-pages/man2/pidfd_open.2.html).

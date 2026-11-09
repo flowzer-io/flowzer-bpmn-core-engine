@@ -355,18 +355,37 @@ class AdapterSourceContractTests(unittest.TestCase):
         config = dict(User='1654:22000', Env=[k+'='+v for k,v in dict(port.image_env[PLAN.api_image], **port._api_environment()).items()],
             Entrypoint=['/usr/share/dotnet/dotnet'], Cmd=['/app/SmokeFeeder.dll','--bound-fixture',PLAN.nonce,'b'*64,'c'*64],
             Labels={'flowzer-smoke.nonce':PLAN.nonce,'flowzer-smoke.role':'api'}, Image=PLAN.api_image)
-        host = dict(Binds=None, PidMode='', IpcMode='private', PublishAllPorts=False, Memory=768*1024**2,
+        host = dict(Init=True, Binds=None, PidMode='', IpcMode='private', PublishAllPorts=False, Memory=768*1024**2,
             PidsLimit=128, NanoCpus=1000000000, ReadonlyRootfs=True, CapAdd=None, CapDrop=['ALL'],
             SecurityOpt=['no-new-privileges:true'], Tmpfs={'/tmp':'rw,noexec,nosuid,size=67108864,uid=1654,gid=22000'},
             NetworkMode='none', LogConfig={'Type':'none'}, Privileged=False, PortBindings={})
         value = dict(Id=cid, Image=port.image_ids[PLAN.api_image], Config=config, HostConfig=host,
             Mounts=[dict(Type='volume',Name=expected['socketVolume'],Destination='/flowzer-socket',RW=True)])
+        # Testzweck: Echter Create-Argumentaufbau verlangt Init exakt für API, ohne einen Dockeraufruf.
+        for role in ['api', 'pg']:
+            create_port = object.__new__(m.DockerPorts)
+            create_port.b = self.binding(); create_port.binding_sha = "e"*64
+            create_port.expected = {}; create_port.created = []
+            create_port.diagnostic = m.RunDiagnostics(); create_port._fresh = lambda: None
+            commands = []
+            def fake_create(args):
+                commands.append(args)
+                return cid.encode()
+            create_port._run = fake_create
+            create_port.create(dict(expected, role=role))
+            self.assertEqual(commands[0].count('--init'), 1 if role == 'api' else 0)
         port._run = lambda *args,**kw: json.dumps([value]).encode()
         self.assertEqual(port.inspect(cid),expected)
         for key,new in [('Env',config['Env']+['LD_PRELOAD=/PUBLIC_NOT_A_LOADER']),('Cmd',['UNKNOWN']),('Entrypoint',['/bin/sh'])]:
             original=value['Config'][key];value['Config'][key]=new
             with self.assertRaises(m.SmokeFailure):port.inspect(cid)
             value['Config'][key]=original
+        port.diagnostic=m.RunDiagnostics()
+        # Testzweck: Ohne explizit inspiziertes Init darf der .NET-Feeder nicht als PID1 laufen.
+        for init in [None, False]:
+            value['HostConfig']['Init'] = init
+            with self.assertRaises(m.SmokeFailure): port.inspect(cid)
+        value['HostConfig']['Init'] = True
         port.diagnostic=m.RunDiagnostics()
         value['HostConfig']['Tmpfs']={}
         with self.assertRaises(m.SmokeFailure):port.inspect(cid)

@@ -65,10 +65,10 @@ class RunnerTests(unittest.TestCase):
             self.assertFalse(r.verify_python_result(result(**changes)))
 
     def test_csharp_requires_exact_unique_passes_and_terminal_summary(self):
-        # Testzweck: Exit0 allein reicht nicht; feste15 IDs und ausschließlich vollständige NoSkip-Zusammenfassung.
+        # Testzweck: Exit0 allein reicht nicht; feste19 IDs und ausschließlich vollständige NoSkip-Zusammenfassung.
         r = runner(); good = ''.join('PASS '+name+'\n' for name in r.CSHARP_IDS)+r.SUMMARY+'\n'
         r.verify_csharp_output(good)
-        for bad in ['', good.replace('total=15', 'total=14'), good.replace('skipped=0', 'skipped=1'),
+        for bad in ['', good.replace('total=19', 'total=18'), good.replace('skipped=0', 'skipped=1'),
                     good.replace('PASS ', 'FAIL ', 1), good+good, good+'SKIP unknown\n',
                     good.replace(r.CSHARP_IDS[0], r.CSHARP_IDS[1], 1), 'UNEXPECTED\n'+good]:
             with self.assertRaises(ValueError): r.verify_csharp_output(bad)

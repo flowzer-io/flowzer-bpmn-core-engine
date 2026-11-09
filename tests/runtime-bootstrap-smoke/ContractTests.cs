@@ -182,6 +182,43 @@ internal static class ContractTests
                 && report.GetProperty("cleanup").GetString() == "Unknown");
             Check(!Program.Rejection(diagnostic).Contains(PublicSentinels[0]));
         });
+        // Testzweck: PID1, ignoriertes/anderweitig behandeltes SIGCHLD und automatische Reaps failclosed sperren.
+        await Case("child-signal-reaper-preconditions", async () => {
+            ChildSignal.ValidateReaper(2, IntPtr.Zero, 0);
+            foreach (var values in new[] { (1, IntPtr.Zero, 0), (2, new IntPtr(1), 0), (2, new IntPtr(2), 0), (2, IntPtr.Zero, 2) })
+                await Reject(Failure.Cleanup, () => { ChildSignal.ValidateReaper(values.Item1, values.Item2, values.Item3); return Task.CompletedTask; });
+        });
+        // Testzweck: Nach pidfd_open erneut den Originalzustand prüfen; recycelte PID niemals signalisieren.
+        await Case("child-signal-acquire-race", () => {
+            var events = new List<string>(); var handle = new Signal();
+            var signal = ChildSignal.Acquire(() => { events.Add("open"); return handle; },
+                () => { events.Add("original-exited"); return true; });
+            Check(signal is null && handle.Disposals == 1 && handle.Signals.Count == 0
+                && events.SequenceEqual(new[] { "open", "original-exited" }));
+            return Task.CompletedTask;
+        });
+        // Testzweck: Nach erfolgreicher Bindung nur denselben Handle für TERM/KILL verwenden, keine PID-Neuauflösung.
+        await Case("child-signal-stable-handle", () => {
+            var handle = new Signal(); var opens = 0;
+            using (var signal = ChildSignal.Acquire(() => { opens++; return handle; }, () => false)) {
+                Check(signal is not null); signal!.Send(15); signal.Send(9);
+            }
+            Check(opens == 1 && handle.Disposals == 1 && handle.Signals.SequenceEqual(new[] { 15, 9 }));
+            return Task.CompletedTask;
+        });
+        // Testzweck: Unbekannte Originalidentität/fehlende pidfd-Unterstützung scheitert ohne Signal-Fallback.
+        await Case("child-signal-fails-closed", () => {
+            var handle = new Signal();
+            var rejected = false;
+            try { ChildSignal.Acquire(() => handle, () => throw new InvalidOperationException()); }
+            catch (InvalidOperationException) { rejected = true; }
+            Check(rejected && handle.Disposals == 1 && handle.Signals.Count == 0);
+            var checkedOriginal = false;
+            try { ChildSignal.Acquire(() => throw new PlatformNotSupportedException(), () => checkedOriginal = true); Check(false); }
+            catch (PlatformNotSupportedException) { }
+            Check(!checkedOriginal);
+            return Task.CompletedTask;
+        });
         // Testzweck: Der normale Einstieg ist bewusst noch geschlossen; keine Fake-Runtimeabnahme.
         await Case("entrypoint-closed", () => {
             Check(Program.IsContractMode(["--contract-test"]) && !Program.IsContractMode([])
@@ -189,6 +226,13 @@ internal static class ContractTests
         });
         Console.WriteLine($"CONTRACTS total={count} passed={count - failed} failed={failed} skipped=0");
         return failed == 0 ? 0 : 1;
+    }
+    private sealed class Signal : IChildSignal
+    {
+        internal List<int> Signals { get; } = [];
+        internal int Disposals { get; private set; }
+        public void Send(int signal) => Signals.Add(signal);
+        public void Dispose() => Disposals++;
     }
     private sealed class AdvancingInput(Clock clock) : IInput
     {

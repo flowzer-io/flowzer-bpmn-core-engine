@@ -501,7 +501,7 @@ class DockerPorts:
                      '--entrypoint', '/bin/sh', spec['image'], '-c',
                      self._pg_command()]
         else:
-            args += ['--read-only', '--tmpfs', f"/tmp:rw,noexec,nosuid,size=67108864,uid={uid},gid={self.b['gid']}"]
+            args += ['--init', '--read-only', '--tmpfs', f"/tmp:rw,noexec,nosuid,size=67108864,uid={uid},gid={self.b['gid']}"]
             env = self._api_environment()
             for key, value in env.items(): args += ['--env', key + '=' + value]  # Ausschließlich nichtgeheime Bindungen.
             args += ['--entrypoint', '/usr/share/dotnet/dotnet', spec['image'], '/app/SmokeFeeder.dll',
@@ -557,6 +557,7 @@ class DockerPorts:
                 or len(volumes) != 1 or volumes[0]['Name'] != expected['socketVolume'] \
                 or volumes[0]['Destination'] != '/flowzer-socket' or not volumes[0]['RW'] \
                 or any(m['Type'] not in ['volume', 'tmpfs'] for m in value['Mounts']) \
+                or (role == 'api' and host.get('Init') is not True) \
                 or host['PidMode'] or host['IpcMode'] not in ['private', ''] or host.get('PublishAllPorts') \
                 or host['Memory'] != expected['memory'] or host['PidsLimit'] != expected['pids'] \
                 or host['NanoCpus'] != 1000000000 or host['ReadonlyRootfs'] != (role == 'api') \
@@ -566,7 +567,7 @@ class DockerPorts:
             if value['Id']!=cid or config['User']!=f"{uid}:{self.b['gid']}":code='IDENTITY'
             elif host.get('Binds') or len(volumes)!=1 or any(m['Type'] not in ['volume','tmpfs'] for m in value['Mounts']):code='MOUNTS'
             elif volumes[0]['Name']!=expected['socketVolume'] or volumes[0]['Destination']!='/flowzer-socket' or not volumes[0]['RW']:code='MOUNTS'
-            elif host['PidMode'] or host['IpcMode'] not in ['private',''] or host.get('PublishAllPorts'):code='ISOLATION'
+            elif (role == 'api' and host.get('Init') is not True) or host['PidMode'] or host['IpcMode'] not in ['private',''] or host.get('PublishAllPorts'):code='ISOLATION'
             elif host['Memory']!=expected['memory'] or host['PidsLimit']!=expected['pids'] or host['NanoCpus']!=1000000000:code='RESOURCES'
             elif host['ReadonlyRootfs']!=(role=='api'):code='ROOTFS'
             elif host.get('CapAdd') or host['CapDrop']!=['ALL']:code='CAPABILITIES'

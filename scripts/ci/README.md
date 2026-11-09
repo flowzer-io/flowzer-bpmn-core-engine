@@ -68,14 +68,15 @@ Gleichheit mit dem SDK-Patch wird weder verlangt noch behauptet. Runtimeconfig
 und installierte Runtimes werden vor dem Testaufruf geprüft. Weder Projekt noch
 `rollForward` oder `DOTNET_ROLL_FORWARD` werden dafür verändert.
 
-Nur `--contract-test` wird ausgeführt: Exit0, jede der **15** festen PASS-IDs
-genau einmal und die terminale Zusammenfassung `total=15 passed=15 failed=0
+Nur `--contract-test` wird ausgeführt: Exit0, jede der **19** festen PASS-IDs
+genau einmal und die terminale Zusammenfassung `total=19 passed=19 failed=0
 skipped=0` sind gemeinsam notwendig. Bei Countabweichung, Skip, ExpectedFailure,
 unerwarteter Ausgabe oder Toolfehler ist der Anschluss rot. Die sieben neuen
 Helper-/Verdrahtungstests verwenden ausschließlich Mocks und negative Fälle.
 
 Dieser Anschluss beweist weder tatsächlich ausgeführte Hosted-CI noch sichere
-Liveadapter oder Demoabnahme. Das offene P3 der numerischen Kind-PID-Signalisierung
-im eigenen exklusiven APIcontainer bleibt unverändert und wird hier nicht
-weggetestet. Linux-/Image-/Keycloak-/HTTPS-/45-Minuten- und reale Cleanupabnahme
+Liveadapter oder Demoabnahme. Der spätere Sourceabschluss ersetzt numerische
+Kind-PID-Signale durch pidfd unter explizitem Linux-x64-/Nicht-PID1-/SIGCHLD-DFL-Vertrag
+(siehe Feeder-README). Die Fakes prüfen den Sourcevertrag, nicht dessen reale
+Runtimeabnahme; das geänderte `--init`-Rezept benötigt einen neuen freigegebenen Pilot. Linux-/Image-/Keycloak-/HTTPS-/45-Minuten- und reale Cleanupabnahme
 benötigen weiterhin ihre getrennten tatsächlichen Belege und Freigaben.

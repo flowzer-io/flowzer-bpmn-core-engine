@@ -154,7 +154,10 @@ internal sealed class LiveFixturePorts : IFixturePorts
     private readonly long boundUntil;
     private OwnedChild? api;
     private bool provisioned;
-    private sealed record OwnedChild(System.Diagnostics.Process Process, Task<byte[]> Out, Task<byte[]> Err);
+    private sealed record OwnedChild(System.Diagnostics.Process Process, Task<byte[]> Out, Task<byte[]> Err)
+    {
+        internal IChildSignal? Signal { get; set; }
+    }
 
     internal LiveFixturePorts(FixturePacket packet, string apiSha, string feederSha)
     {
@@ -168,6 +171,8 @@ internal sealed class LiveFixturePorts : IFixturePorts
         if (!OperatingSystem.IsLinux() || System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture
                 != System.Runtime.InteropServices.Architecture.X64 || Environment.Version.ToString() != runtime)
             throw new SmokeFailure(Failure.Sequence);
+        // Muss vor dem ersten Process.Start gelten; --init allein beweist die SIGCHLD-Disposition nicht.
+        ChildSignal.VerifyReaper();
         Pin("/app/WebApiEngine.dll", apiSha);
         Pin(typeof(Program).Assembly.Location, feederSha);
         if (!native.StartsWith("/app/", StringComparison.Ordinal) || !native.EndsWith(".so", StringComparison.Ordinal)
@@ -293,11 +298,12 @@ internal sealed class LiveFixturePorts : IFixturePorts
         }) start.Environment.Add(pair.Key, pair.Value);
         var process = System.Diagnostics.Process.Start(start) ?? throw new SmokeFailure(Failure.Sequence);
         var owned = new OwnedChild(process, ReadBounded(process.StandardOutput.BaseStream), ReadBounded(process.StandardError.BaseStream));
-        children.Add(owned); // Vor Write/EOF vermerken: partieller Start muss ebenfalls abgeschlossen werden.
+        children.Add(owned); // Auch ein fehlgeschlagener Handle-Erwerb bleibt ein unbekannter Cleanup, nie vergessen.
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         deadline.CancelAfter(Math.Min(remainingMs, 10000));
         try
         {
+            owned.Signal = ChildSignal.Acquire(process);
             await process.StandardInput.BaseStream.WriteAsync(input, deadline.Token);
             await process.StandardInput.BaseStream.FlushAsync(deadline.Token);
         }
@@ -367,7 +373,8 @@ internal sealed class LiveFixturePorts : IFixturePorts
         {
             try
             {
-                if (!child.Process.HasExited && Kill(child.Process.Id, 15) != 0) throw new SmokeFailure(Failure.Cleanup);
+                if (!child.Process.HasExited)
+                    (child.Signal ?? throw new SmokeFailure(Failure.Cleanup)).Send(15);
                 var left = Math.Max(1, remainingMs - (int)start.ElapsedMilliseconds);
                 var result = await Capture(child, left);
                 OutputGuard.Verify(result, packet);
@@ -376,15 +383,13 @@ internal sealed class LiveFixturePorts : IFixturePorts
             catch
             {
                 empty = false;
-                // Ausschließlich die eigenen Kinder im exklusiven Container; KILL ist kein positiver Abschluss.
-                try { if (!child.Process.HasExited) child.Process.Kill(entireProcessTree: true); await child.Process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(2)); }
+                // KILL nur über denselben gebundenen pidfd; kein numerischer Fallback und kein positiver Abschluss.
+                try { if (!child.Process.HasExited) (child.Signal ?? throw new SmokeFailure(Failure.Cleanup)).Send(9); await child.Process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(2)); }
                 catch { }
             }
-            finally { child.Process.Dispose(); }
+            finally { child.Signal?.Dispose(); child.Process.Dispose(); }
         }
         lifetime.Cancel(); lifetime.Dispose();
         return new(empty, children.Count, last);
     }
-    [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "kill", SetLastError = true)]
-    private static extern int Kill(int process, int signal);
 }

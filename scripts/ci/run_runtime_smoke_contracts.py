@@ -15,8 +15,9 @@ spec.loader.exec_module(shared)
 CSHARP_IDS = ('packet-short-reads-eof', 'packet-eof-size-timeout', 'packet-schema', 'packet-clock',
     'sequence-once', 'roles-least-privilege', 'migration-failure', 'child-projections', 'connection-builder',
     'readiness-components', 'output-sentinel-encodings', 'output-bounds-and-terminal', 'cleanup-proof',
-    'partial-start-fails-safe', 'entrypoint-closed')
-SUMMARY = 'CONTRACTS total=15 passed=15 failed=0 skipped=0'
+    'partial-start-fails-safe', 'child-signal-reaper-preconditions', 'child-signal-acquire-race', 'child-signal-stable-handle',
+    'child-signal-fails-closed', 'entrypoint-closed')
+SUMMARY = 'CONTRACTS total=19 passed=19 failed=0 skipped=0'
 
 
 def verify_python_result(result):
@@ -28,7 +29,7 @@ def verify_python_result(result):
 def verify_csharp_output(output):
     """Jede feste ID einmal und letzte vollständige NoSkip-Zusammenfassung, keine beliebige Exit0-Meldung."""
     if output.splitlines() != ['PASS '+name for name in CSHARP_IDS]+[SUMMARY]:
-        raise ValueError('Exactly 15 successful feeder contracts required')
+        raise ValueError('Exactly 19 successful feeder contracts required')
 
 
 def verify_framework(config, installed):
@@ -78,7 +79,7 @@ def execute(dotnet, work):
     eligible = verify_framework(output/'SmokeFeeder.runtimeconfig.json',
                                shared.run_tool([str(dotnet), '--list-runtimes'], environment, capture=True))
     verify_csharp_output(shared.run_tool([str(dotnet), str(dll), '--contract-test'], environment, capture=True))
-    print('Feeder fake contracts: Python19/19, C#15/15, skipped=0; eligible NETCore '+eligible)
+    print('Feeder fake contracts: Python19/19, C#19/19, skipped=0; eligible NETCore '+eligible)
     return 0
 
 
